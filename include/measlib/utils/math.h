@@ -101,6 +101,47 @@ void meas_math_stats(const meas_real_t *data, size_t count, meas_real_t *mean,
                      meas_real_t *max_val);
 
 /**
+ * @brief Compute Root Mean Square (RMS).
+ * Calculates the RMS value of a dataset.
+ * RMS = sqrt( (1/N) * sum(x[i]^2) )
+ *
+ * @param data Input array.
+ * @param count Number of elements.
+ * @return RMS value.
+ */
+meas_real_t meas_math_rms(const meas_real_t *data, size_t count);
+
+/**
+ * @brief Simple Moving Average (SMA).
+ * Applies a moving average filter to the input data.
+ * Note: Output buffer must be at least typically same size or count-window+1
+ * depending on mode. Here we implement "valid" mode: output size = count -
+ * window_size + 1.
+ *
+ * @param input Input data array.
+ * @param count Number of elements in input.
+ * @param window_size Size of the moving window.
+ * @param output Output buffer.
+ * @param[out] out_count Number of elements written to output.
+ */
+void meas_math_sma(const meas_real_t *input, size_t count, size_t window_size,
+                   meas_real_t *output, size_t *out_count);
+
+/**
+ * @brief Exponential Moving Average (EMA).
+ * Updates a running average with a new sample.
+ * y[n] = alpha * x[n] + (1 - alpha) * y[n-1]
+ *
+ * @param current_avg The current accumulated average (y[n-1]).
+ * @param new_sample The new input sample (x[n]).
+ * @param alpha Smoothing factor (0 < alpha <= 1).
+ *              Higher alpha = less smoothing, faster response.
+ * @return New average (y[n]).
+ */
+meas_real_t meas_math_ema(meas_real_t current_avg, meas_real_t new_sample,
+                          meas_real_t alpha);
+
+/**
  * @brief Complex Absolute Value (Magnitude).
  */
 meas_real_t meas_cabs(meas_complex_t z);

@@ -17,16 +17,16 @@
 // ===========================================
 
 // Fast Sqrt (Float)
-static float fast_sqrtf(float x) {
-  union {
-    float x;
-    uint32_t i;
-  } u = {x};
-  u.i = (1 << 29) + (u.i >> 1) - (1 << 22);
-  u.x = u.x + x / u.x;
-  u.x = 0.25f * u.x + x / u.x;
-  return u.x;
-}
+// static float fast_sqrtf(float x) {
+//   union {
+//     float x;
+//     uint32_t i;
+//   } u = {x};
+//   u.i = (1 << 29) + (u.i >> 1) - (1 << 22);
+//   u.x = u.x + x / u.x;
+//   u.x = 0.25f * u.x + x / u.x;
+//   return u.x;
+// }
 
 // Fast Cbrt (Float)
 static float fast_cbrtf(float x) {
@@ -346,6 +346,54 @@ void meas_math_stats(const meas_real_t *data, size_t count, meas_real_t *mean,
     meas_real_t variance = S / count;
     *std_dev = meas_math_sqrt(variance > 0 ? variance : 0);
   }
+}
+
+// ===========================================
+// Statistics & Signal Processing
+// ===========================================
+
+meas_real_t meas_math_rms(const meas_real_t *data, size_t count) {
+  if (!data || count == 0)
+    return 0.0;
+
+  meas_real_t sum_sq = 0.0;
+  for (size_t i = 0; i < count; i++) {
+    sum_sq += data[i] * data[i];
+  }
+  return MEAS_MATH_SQRT_IMPL(sum_sq / count);
+}
+
+void meas_math_sma(const meas_real_t *input, size_t count, size_t window_size,
+                   meas_real_t *output, size_t *out_count) {
+  if (!input || !output || window_size == 0 || window_size > count) {
+    if (out_count)
+      *out_count = 0;
+    return;
+  }
+
+  size_t valid_points = count - window_size + 1;
+  meas_real_t current_sum = 0.0;
+
+  // Initial window
+  for (size_t i = 0; i < window_size; i++) {
+    current_sum += input[i];
+  }
+  output[0] = current_sum / window_size;
+
+  // Slide window
+  for (size_t i = 1; i < valid_points; i++) {
+    current_sum -= input[i - 1];
+    current_sum += input[i + window_size - 1];
+    output[i] = current_sum / window_size;
+  }
+
+  if (out_count)
+    *out_count = valid_points;
+}
+
+meas_real_t meas_math_ema(meas_real_t current_avg, meas_real_t new_sample,
+                          meas_real_t alpha) {
+  return (alpha * new_sample) + ((1.0 - alpha) * current_avg);
 }
 
 meas_real_t meas_cabs(meas_complex_t z) {
