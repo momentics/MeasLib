@@ -169,6 +169,16 @@ meas_real_t meas_math_log(meas_real_t x);
 meas_real_t meas_math_log10(meas_real_t x);
 
 /**
+ * @brief Fast Exponential Function.
+ * Computes e^x using cubic spline approximation.
+ * Optimized for performance with reasonable accuracy (~8.34e-5 error).
+ *
+ * @param x Input value.
+ * @return Exponent of x (e^x).
+ */
+meas_real_t meas_math_exp(meas_real_t x);
+
+/**
  * @brief Fast Artangent.
  * Computes the arc tangent of a number.
  *

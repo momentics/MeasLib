@@ -8,6 +8,7 @@
 
 #include "measlib/utils/math.h"
 #include "math_private.h"
+#include "measlib/boards/math_ops.h"
 #include <math.h> // Generic C math for sqrt/fabs
 #include <stdint.h>
 
@@ -76,8 +77,8 @@ static float fast_atan2f(float y, float x) {
     return 0.0f;
 
   float ax, ay, r, s;
-  ax = fabsf(x);
-  ay = fabsf(y);
+  ax = MEAS_MATH_ABS_IMPL(x);
+  ay = MEAS_MATH_ABS_IMPL(y);
   r = (ay < ax) ? ay / ax : ax / ay;
   s = r * r;
 
@@ -230,12 +231,12 @@ meas_real_t meas_math_interp_linear(meas_real_t x, meas_real_t x0,
 }
 
 bool meas_math_is_close(meas_real_t a, meas_real_t b, meas_real_t epsilon) {
-  return fabs(a - b) <= epsilon;
+  return MEAS_MATH_ABS_IMPL(a - b) <= epsilon;
 }
 
 meas_real_t meas_math_sqrt(meas_real_t x) {
   if (sizeof(meas_real_t) == 4) {
-    return (meas_real_t)fast_sqrtf((float)x);
+    return (meas_real_t)MEAS_MATH_SQRT_IMPL((float)x);
   }
   return sqrt(x);
 }
@@ -264,6 +265,22 @@ meas_real_t meas_math_log10(meas_real_t x) {
     return (meas_real_t)(fast_logf((float)x) * 0.4342944819f);
   }
   return log10(x);
+}
+
+meas_real_t meas_math_exp(meas_real_t x) {
+  if (sizeof(meas_real_t) == 4) {
+    union {
+      float f;
+      int32_t i;
+    } v;
+    v.i = (int32_t)(12102203.0f * (float)x) + 0x3F800000;
+    int32_t m = (v.i >> 7) & 0xFFFF; // copy mantissa
+    // cubic spline approximation
+    v.i += ((((((((1277 * m) >> 14) + 14825) * m) >> 14) - 79749) * m) >> 11) -
+           626;
+    return (meas_real_t)v.f;
+  }
+  return exp(x);
 }
 
 meas_real_t meas_math_atan(meas_real_t x) {

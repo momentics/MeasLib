@@ -102,6 +102,7 @@ add_library(MeasLib STATIC
 # Includes
 target_include_directories(MeasLib PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boards/${MEASLIB_TARGET}/include>
     $<INSTALL_INTERFACE:include>
 )
 
