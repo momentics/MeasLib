@@ -269,6 +269,7 @@ typedef struct {
     meas_status_t (*get_data)(meas_trace_t* t, const meas_real_t** x, const meas_real_t** y, size_t* count);
     meas_status_t (*set_format)(meas_trace_t* t, meas_trace_fmt_t fmt);
 } meas_trace_api_t;
+```
 
 ### 4.3 Analysis Tools (`meas_marker_t`)
 
@@ -291,7 +292,6 @@ typedef struct {
     meas_status_t (*get_stimulus)(meas_marker_t* m, meas_real_t* freq);
 } meas_marker_api_t;
 ```
-
 
 ## 5. Messaging & Data Flow
 
