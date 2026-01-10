@@ -228,8 +228,6 @@ typedef struct {
 meas_status_t meas_driver_register(const meas_driver_desc_t* desc);
 ```
 
-```
-
 ## 4. Core Domain Entities
 
 ### 4.1 Measurement Channel (`meas_channel_t`)
@@ -294,7 +292,6 @@ typedef struct {
 } meas_marker_api_t;
 ```
 
-```
 
 ## 5. Messaging & Data Flow
 
