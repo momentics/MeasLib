@@ -32,4 +32,21 @@ typedef struct {
  */
 meas_status_t meas_driver_register(const meas_driver_desc_t *desc);
 
+/**
+ * @brief Enter Critical Section
+ * Disables interrupts to protect atomic operations.
+ *
+ * @return uint32_t Opaque state value (e.g. PRIMASK) to be passed to
+ * sys_exit_critical.
+ */
+uint32_t sys_enter_critical(void);
+
+/**
+ * @brief Exit Critical Section
+ * Restores interrupt state.
+ *
+ * @param state State value returned by sys_enter_critical.
+ */
+void sys_exit_critical(uint32_t state);
+
 #endif // MEASLIB_DRIVERS_API_H

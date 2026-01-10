@@ -10,6 +10,7 @@
  */
 
 #include "measlib/core/event.h"
+#include "measlib/drivers/api.h"
 #include <stddef.h>
 
 #define MAX_SUBSCRIBERS 32
@@ -44,12 +45,18 @@ meas_status_t meas_subscribe(meas_object_t *pub, meas_event_cb_t cb,
 
 // Internal: Push event from ISR or App
 meas_status_t meas_event_publish(meas_event_t ev) {
+  uint32_t status = sys_enter_critical();
+
   size_t next = (q_head + 1) % MAX_EVENT_QUEUE;
-  if (next == q_tail)
+  if (next == q_tail) {
+    sys_exit_critical(status);
     return MEAS_BUSY; // Queue Full
+  }
 
   event_queue[q_head] = ev;
   q_head = next;
+
+  sys_exit_critical(status);
   return MEAS_OK;
 }
 
