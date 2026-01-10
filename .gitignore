@@ -67,10 +67,7 @@ compile_commands.json
 .cache/
 
 # Build directories
-build/
-build_at32f403/
-build_stm32f072/
-build_stm32f303/
+/build*/
 bin/
 lib/
 dist/
