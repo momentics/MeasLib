@@ -86,6 +86,9 @@ add_library(MeasLib STATIC
 
     # Drivers
     src/drivers/registry.c
+    
+    # Board Support
+    boards/${MEASLIB_TARGET}/board.c
 )
 
 # Includes
