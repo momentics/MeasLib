@@ -1,0 +1,8 @@
+MeasLib
+Copyright 2026 momentics
+
+This product includes software developed at
+The ChibiOS Project (http://www.chibios.org/).
+
+The linker scripts located in the 'boards/' directory are derived from
+ChibiOS and are licensed under the Apache License, Version 2.0.
