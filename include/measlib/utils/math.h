@@ -23,6 +23,17 @@ meas_real_t meas_math_interp_linear(meas_real_t x, meas_real_t x0,
                                     meas_real_t y1);
 
 /**
+ * @brief Check if two values are close (Approximation).
+ * Returns true if the absolute difference is within epsilon.
+ *
+ * @param a First value.
+ * @param b Second value.
+ * @param epsilon Tolerance.
+ * @return true if |a - b| <= epsilon.
+ */
+bool meas_math_is_close(meas_real_t a, meas_real_t b, meas_real_t epsilon);
+
+/**
  * @brief Compute Basic Statistics.
  * Calculates Mean, StdDev, Min, Max in a single pass.
  * @param data Input array.

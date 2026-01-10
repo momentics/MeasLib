@@ -17,6 +17,10 @@ meas_real_t meas_math_interp_linear(meas_real_t x, meas_real_t x0,
   return y0 + (x - x0) * (y1 - y0) / (x1 - x0);
 }
 
+bool meas_math_is_close(meas_real_t a, meas_real_t b, meas_real_t epsilon) {
+  return fabs(a - b) <= epsilon;
+}
+
 void meas_math_stats(const meas_real_t *data, size_t count, meas_real_t *mean,
                      meas_real_t *std_dev, meas_real_t *min_val,
                      meas_real_t *max_val) {
