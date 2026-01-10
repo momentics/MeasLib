@@ -72,8 +72,9 @@ static void vna_fsm_tick(meas_channel_t *base_ch) {
 
     // 2. Publish Data Ready Event (to UI/Storage)
     {
-      meas_event_t ev = {
-          .type = EVENT_DATA_READY, .source = base_ch, .payload = {0}};
+      meas_event_t ev = {.type = EVENT_DATA_READY,
+                         .source = (meas_object_t *)base_ch,
+                         .payload = {0}};
       meas_event_publish(ev);
     }
 
@@ -86,13 +87,17 @@ static void vna_fsm_tick(meas_channel_t *base_ch) {
     if (ch->current_point >= ch->points) {
       // Sweep Complete
       ch->state = VNA_CH_STATE_IDLE;
-      meas_event_t ev = {.type = EVENT_STATE_CHANGED, .source = base_ch};
+      meas_event_t ev = {.type = EVENT_STATE_CHANGED,
+                         .source = (meas_object_t *)base_ch};
       meas_event_publish(ev);
     } else {
       // Calc Next Freq
+      // Calc Next Freq
       // Linear Sweep: Start + (k * Step)
-      uint32_t step = (ch->stop_freq_hz - ch->start_freq_hz) / (ch->points - 1);
-      ch->current_freq_hz = ch->start_freq_hz + (ch->current_point * step);
+      meas_real_t step = (meas_real_t)(ch->stop_freq_hz - ch->start_freq_hz) /
+                         (ch->points - 1);
+      ch->current_freq_hz =
+          ch->start_freq_hz + (uint32_t)(ch->current_point * step);
 
       ch->state = VNA_CH_STATE_SETUP; // Loop
     }

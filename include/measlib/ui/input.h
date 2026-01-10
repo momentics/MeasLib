@@ -40,7 +40,7 @@ typedef struct {
  * Used to transform raw ADC/Controller coords to Screen Space.
  */
 typedef struct {
-  int32_t a, b, c, d, e, f, div;
+  int16_t a, b, c, d, e, f, div;
 } meas_touch_cal_t;
 
 /**

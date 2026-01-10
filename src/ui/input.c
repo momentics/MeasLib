@@ -26,8 +26,10 @@ meas_status_t meas_ui_calibrate_touch(meas_input_event_t *ev,
   if (cal->div == 0)
     return MEAS_ERROR;
 
-  int32_t x_new = (cal->a * x_raw + cal->b * y_raw + cal->c) / cal->div;
-  int32_t y_new = (cal->d * x_raw + cal->e * y_raw + cal->f) / cal->div;
+  int32_t x_new =
+      ((int32_t)cal->a * x_raw + (int32_t)cal->b * y_raw + cal->c) / cal->div;
+  int32_t y_new =
+      ((int32_t)cal->d * x_raw + (int32_t)cal->e * y_raw + cal->f) / cal->div;
 
   ev->x = (int16_t)x_new;
   ev->y = (int16_t)y_new;
