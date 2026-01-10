@@ -43,10 +43,18 @@ else()
 endif()
 
 # Common Compiler Flags (Matching Reference)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
+
+# Define flags for different build types
+set(CMAKE_C_FLAGS_DEBUG "-O0 -g -gdwarf-2")
+set(CMAKE_C_FLAGS_RELEASE "-Os")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-Os -g -gdwarf-2")
+
 add_compile_options(
     ${MCU_FLAGS}
     -Wall -Wextra -Werror=implicit-function-declaration -Wstrict-prototypes
-    -Os -g -gdwarf-2
     -ffast-math -fsingle-precision-constant
     -fno-common -ffunction-sections -fdata-sections
     --specs=nano.specs
@@ -99,14 +107,22 @@ target_include_directories(MeasLib PUBLIC
 
 # Startup / Entry Point (Dummy for now, usually would be startup_stm32*.s)
 # Using main.c as entry for the ELF to verify link
-add_executable(FirmwareElf src/main.c)
-target_link_libraries(FirmwareElf PRIVATE MeasLib)
+add_executable(MeasLibFW src/main.c)
+target_link_libraries(MeasLibFW PRIVATE MeasLib)
 
 # Binary / Hex Generation
 if(CMAKE_OBJCOPY)
-    add_custom_command(TARGET FirmwareElf POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} -O binary FirmwareElf FirmwareElf.bin
-        COMMAND ${CMAKE_OBJCOPY} -O ihex FirmwareElf FirmwareElf.hex
+    add_custom_command(TARGET MeasLibFW POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -O binary MeasLibFW MeasLibFW.bin
+        COMMAND ${CMAKE_OBJCOPY} -O ihex MeasLibFW MeasLibFW.hex
         COMMENT "Generating bin and hex output..."
+    )
+endif()
+
+if(CMAKE_STRIP)
+    add_custom_target(strip
+        COMMAND ${CMAKE_STRIP} -s MeasLibFW -o MeasLibFW.stripped
+        DEPENDS MeasLibFW
+        COMMENT "Stripping debug symbols from MeasLibFW..."
     )
 endif()
