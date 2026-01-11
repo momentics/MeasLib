@@ -3,102 +3,28 @@ cmake_minimum_required(VERSION 3.16)
 # Project Definition
 project(MeasLib VERSION 0.1 LANGUAGES C ASM)
 
-# Add Include Directory to Global Path (Solves IDE Issues)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-if(CMAKE_EXPORT_COMPILE_COMMANDS)
-    set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
-    set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES})
-    add_custom_command(
-        OUTPUT "${CMAKE_SOURCE_DIR}/compile_commands.json"
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            "${CMAKE_BINARY_DIR}/compile_commands.json"
-            "${CMAKE_SOURCE_DIR}/compile_commands.json"
-        VERBATIM
-    )
-    add_custom_target(compile_commands ALL DEPENDS "${CMAKE_SOURCE_DIR}/compile_commands.json")
-endif()
-include_directories(include)
-
-# User Options
+# Options
+option(MEASLIB_BUILD_TESTS "Build Host Tests (Linux)" OFF)
 set(MEASLIB_TARGET "STM32F303" CACHE STRING "Target MCU: STM32F072, STM32F303 or AT32F403")
 
-# MCU Flags
-# if(MEASLIB_TARGET STREQUAL "STM32F072")
-#     set(MCU_FLAGS -mcpu=cortex-m0 -mthumb -DARM_MATH_CM0)
-#     set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F072/STM32F072xB.ld")
-#     # Stack sizes are handled in linker script or startup
-#     add_compile_definitions(F072)
-#     set(STARTUP_SRCS 
-#         boards/STM32F072/startup.s
-#         boards/STM32F072/vectors.c
-#     )
-if(MEASLIB_TARGET STREQUAL "STM32F303")
-    set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
-    set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F303/STM32F303xC.ld")
-    # Stack sizes are handled in linker script or startup
-    add_compile_definitions(F303)
-    set(STARTUP_SRCS 
-        boards/STM32F303/startup.s
-        boards/STM32F303/vectors.c
-    )
-elseif(MEASLIB_TARGET STREQUAL "AT32F403")
-    set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
-    set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/AT32F403/AT32F403xG.ld")
-    # Stack sizes are handled in linker script or startup
-    add_compile_definitions(AT32)
-    set(STARTUP_SRCS 
-        boards/AT32F403/startup.s
-        boards/AT32F403/vectors.c
-    )
-else()
-    message(FATAL_ERROR "Unsupported Target: ${MEASLIB_TARGET}")
-endif()
+# Export Compile Commands
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Common Compiler Flags (Matching Reference)
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
+# Includes
+include_directories(include)
 
-# Define flags for different build types
-set(CMAKE_C_FLAGS_DEBUG "-O0 -g -gdwarf-2")
-set(CMAKE_C_FLAGS_RELEASE "-Os")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-Os -g -gdwarf-2")
-
-add_compile_options(
-    ${MCU_FLAGS}
-    -Wall -Wextra -Werror=implicit-function-declaration -Wstrict-prototypes
-    -ffast-math -fsingle-precision-constant
-    -fno-common -ffunction-sections -fdata-sections
-    --specs=nano.specs
-)
-
-add_link_options(
-    ${MCU_FLAGS}
-    ${STACK_FLAGS}
-    -T${LINKER_SCRIPT}
-    -L${CMAKE_CURRENT_SOURCE_DIR}/boards/ld
-    -Wl,--gc-sections
-    -Wl,--print-memory-usage
-    --specs=nano.specs
-    --specs=nosys.specs
-    -lc -lm
-)
-
-# Define the Core Library
-add_library(MeasLib STATIC
-    # Core
+# ==============================================================================
+# SOURCES
+# ==============================================================================
+set(MEASLIB_CORE_SOURCES
     src/core/event.c
     src/core/object.c
     src/core/device.c
     src/core/channel.c
     src/core/trace.c
     src/core/io.c
-    
-    # UI
     src/ui/core.c
     src/ui/input.c
-
-    # Utils
     src/utils/math.c
     src/dsp/dsp.c
     src/dsp/analysis.c
@@ -110,46 +36,112 @@ add_library(MeasLib STATIC
     src/dsp/nodes/node_source.c
     src/dsp/nodes/node_radio.c
     src/dsp/nodes/node_calibration.c
-    
-    # Modules
     src/modules/sa/channel.c
     src/modules/gen/channel.c
     src/modules/vna/channel.c
     src/modules/dmm/channel.c
-
-    # Drivers
     src/drivers/registry.c
+)
+
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+
+if(MEASLIB_BUILD_TESTS)
+    # --- HOST TEST BUILD ---
+    message(STATUS "Building for HOST (Testing Mode)")
+    add_compile_definitions(MEASLIB_HOST_TEST)
     
-    # Board Support
-    boards/${MEASLIB_TARGET}/board.c
-)
-target_link_libraries(MeasLib PUBLIC m)
+    # Compiler Flags (Generic)
+    set(CMAKE_C_FLAGS "-O0 -g -Wall -Wextra")
 
-# Includes
-target_include_directories(MeasLib PUBLIC 
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boards/${MEASLIB_TARGET}/include>
-    $<INSTALL_INTERFACE:include>
-)
-
-# Startup / Entry Point (Dummy for now, usually would be startup_stm32*.s)
-# Using main.c as entry for the ELF to verify link
-add_executable(MeasLibFW src/main.c ${STARTUP_SRCS})
-target_link_libraries(MeasLibFW PRIVATE MeasLib)
-
-# Binary / Hex Generation
-if(CMAKE_OBJCOPY)
-    add_custom_command(TARGET MeasLibFW POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} -O binary MeasLibFW MeasLibFW.bin
-        COMMAND ${CMAKE_OBJCOPY} -O ihex MeasLibFW MeasLibFW.hex
-        COMMENT "Generating bin and hex output..."
+    # Library with Mocks
+    add_library(MeasLib STATIC ${MEASLIB_CORE_SOURCES} tests/mocks/mock_hal.c)
+    target_link_libraries(MeasLib PUBLIC m)
+    target_include_directories(MeasLib PUBLIC 
+        include 
+        tests/mocks
     )
-endif()
 
-if(CMAKE_STRIP)
-    add_custom_target(strip
-        COMMAND ${CMAKE_STRIP} -s MeasLibFW -o MeasLibFW.stripped
-        DEPENDS MeasLibFW
-        COMMENT "Stripping debug symbols from MeasLibFW..."
+    # Test Runner
+    add_executable(MeasLib_Test_Runner 
+        tests/main_test.c 
+        tests/src/modules/vna/test_vna_sanity.c
+        tests/src/modules/vna/test_vna_pipeline.c
+        tests/src/utils/test_math.c
+        tests/src/utils/test_fast_math.c
+        tests/src/dsp/test_fft.c
+        tests/src/core/test_events.c
     )
+    target_link_libraries(MeasLib_Test_Runner PRIVATE MeasLib)
+    target_include_directories(MeasLib_Test_Runner PRIVATE tests/framework)
+
+    # Utils
+    enable_testing()
+    add_test(NAME VNA_Sanity_Test COMMAND MeasLib_Test_Runner)
+
+else()
+    # --- EMBEDDED FIRMWARE BUILD ---
+    
+    # 1. MCU Flags
+    if(MEASLIB_TARGET STREQUAL "STM32F072")
+        # set(MCU_FLAGS -mcpu=cortex-m0 -mthumb -DARM_MATH_CM0)
+        # set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F072/STM32F072xB.ld")
+        # add_compile_definitions(F072)
+        message(FATAL_ERROR "F072 Config Not Complete in Stub")
+    elseif(MEASLIB_TARGET STREQUAL "STM32F303")
+        set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
+        set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F303/STM32F303xC.ld")
+        add_compile_definitions(F303)
+        set(STARTUP_SRCS boards/STM32F303/startup.s boards/STM32F303/vectors.c)
+    elseif(MEASLIB_TARGET STREQUAL "AT32F403")
+        set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
+        set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/AT32F403/AT32F403xG.ld")
+        add_compile_definitions(AT32)
+        set(STARTUP_SRCS boards/AT32F403/startup.s boards/AT32F403/vectors.c)
+    else()
+        message(FATAL_ERROR "Unsupported Target: ${MEASLIB_TARGET}")
+    endif()
+
+    # 2. Compiler Options
+    add_compile_options(
+        ${MCU_FLAGS}
+        -Wall -Wextra -Werror=implicit-function-declaration -Wstrict-prototypes
+        -ffast-math -fsingle-precision-constant
+        -fno-common -ffunction-sections -fdata-sections
+        --specs=nano.specs
+    )
+
+    add_link_options(
+        ${MCU_FLAGS}
+        -T${LINKER_SCRIPT}
+        -L${CMAKE_CURRENT_SOURCE_DIR}/boards/ld
+        -Wl,--gc-sections
+        -Wl,--print-memory-usage
+        --specs=nano.specs
+        --specs=nosys.specs
+        -lc -lm
+    )
+
+    # 3. Library (with Real Board Support)
+    add_library(MeasLib STATIC ${MEASLIB_CORE_SOURCES} boards/${MEASLIB_TARGET}/board.c)
+    target_link_libraries(MeasLib PUBLIC m)
+    
+    target_include_directories(MeasLib PUBLIC 
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boards/${MEASLIB_TARGET}/include>
+    )
+
+    # 4. Firmware Executable
+    add_executable(MeasLibFW src/main.c ${STARTUP_SRCS})
+    target_link_libraries(MeasLibFW PRIVATE MeasLib)
+
+    # 5. Hex Generation
+    if(CMAKE_OBJCOPY)
+        add_custom_command(TARGET MeasLibFW POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} -O binary MeasLibFW MeasLibFW.bin
+            COMMAND ${CMAKE_OBJCOPY} -O ihex MeasLibFW MeasLibFW.hex
+            COMMENT "Generating bin and hex output..."
+        )
+    endif()
 endif()

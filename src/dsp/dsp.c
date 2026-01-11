@@ -16,6 +16,23 @@
 // Mixing (DDC)
 // ============================================================================
 
+/**
+ * @brief Down-converts (mixes) input samples with a local oscillator (LO) sine
+ * table.
+ *
+ * Performs digital down-conversion (DDC) by multiplying input samples with sine
+ * and cosine components from a lookup table. Supports accumulation of results
+ * for VNA processing.
+ *
+ * @param input Pointer to the input signal buffer (int16_t).
+ * @param length Number of samples to process.
+ * @param sin_table Pointer to the sine lookup table (int16_t).
+ * @param acc_i [in/out] Accumulator for In-phase component signal.
+ * @param acc_q [in/out] Accumulator for Quadrature component signal.
+ * @param ref_i [in/out] Accumulator for In-phase reference signal.
+ * @param ref_q [in/out] Accumulator for Quadrature reference signal.
+ * @return MEAS_OK on success, MEAS_ERROR if inputs are invalid.
+ */
 meas_status_t meas_dsp_mix_down(const int16_t *input, size_t length,
                                 const int16_t *sin_table, int64_t *acc_i,
                                 int64_t *acc_q, int64_t *ref_i,
@@ -54,6 +71,18 @@ meas_status_t meas_dsp_mix_down(const int16_t *input, size_t length,
 // VNA Specifics
 // ============================================================================
 
+/**
+ * @brief Calculates the complex reflection coefficient (Gamma) from raw
+ * accumulators.
+ *
+ * Computed as Gamma = (Sample / Reference).
+ *
+ * @param acc_samp_i Accumulated In-phase sample value.
+ * @param acc_samp_q Accumulated Quadrature sample value.
+ * @param acc_ref_i Accumulated In-phase reference value.
+ * @param acc_ref_q Accumulated Quadrature reference value.
+ * @param gamma [out] Pointer to store the calculated complex Gamma.
+ */
 void meas_dsp_gamma_calc(int64_t acc_samp_i, int64_t acc_samp_q,
                          int64_t acc_ref_i, int64_t acc_ref_q,
                          meas_complex_t *gamma) {
@@ -77,6 +106,14 @@ void meas_dsp_gamma_calc(int64_t acc_samp_i, int64_t acc_samp_q,
   gamma->im = (ss * rc - sc * rs) * inv;
 }
 
+/**
+ * @brief Rotates the phase of a complex number (Gamma) to compensate for
+ * electrical delay.
+ *
+ * @param gamma [in/out] Complex number to rotate.
+ * @param frequency_hz Measurement frequency in Hz.
+ * @param delay_s Electrical delay in seconds.
+ */
 void meas_dsp_phase_rotate(meas_complex_t *gamma, double frequency_hz,
                            double delay_s) {
   if (!gamma)
@@ -93,6 +130,19 @@ void meas_dsp_phase_rotate(meas_complex_t *gamma, double frequency_hz,
   gamma->im = x * s + y * c;
 }
 
+/**
+ * @brief Decimates a signal by averaging (Boxcar filter).
+ *
+ * Reduces the sample rate by summing 'factor' samples and dividing by 'factor'.
+ *
+ * @param input Input signal buffer.
+ * @param in_len Number of input samples.
+ * @param output Output signal buffer.
+ * @param out_len [in/out] Input: Max capacity of output. Output: Actual samples
+ * written.
+ * @param factor Decimation factor (must be >= 1).
+ * @return MEAS_OK on success, MEAS_ERROR on invalid arguments.
+ */
 meas_status_t meas_dsp_decimate(const meas_real_t *input, size_t in_len,
                                 meas_real_t *output, size_t *out_len,
                                 size_t factor) {
@@ -125,6 +175,20 @@ meas_status_t meas_dsp_decimate(const meas_real_t *input, size_t in_len,
 // DMM / SA / Gen
 // ============================================================================
 
+/**
+ * @brief Performs the Goertzel algorithm to compute magnitude and phase at a
+ * specific frequency.
+ *
+ * More efficient than FFT for a single frequency bin analysis.
+ *
+ * @param input Input signal buffer (int16_t).
+ * @param length Number of samples.
+ * @param target_freq Target frequency to analyze in Hz.
+ * @param sample_rate Sampling rate in Hz.
+ * @param magnitude [out] Pointer to store calculated magnitude.
+ * @param phase [out] Pointer to store calculated phase (optional, can be NULL).
+ * @return MEAS_OK on success.
+ */
 meas_status_t meas_dsp_goertzel(const int16_t *input, size_t length,
                                 float target_freq, float sample_rate,
                                 float *magnitude, float *phase) {
@@ -158,6 +222,17 @@ meas_status_t meas_dsp_goertzel(const int16_t *input, size_t length,
   return MEAS_OK;
 }
 
+/**
+ * @brief Calculates optimal FFT length and decimation factor for a desired
+ * Resolution Bandwidth (RBW).
+ *
+ * @param rbw Desired Resolution Bandwidth in Hz.
+ * @param sample_rate Input sampling rate in Hz.
+ * @param fft_len [out] Calculated FFT length (e.g., 512).
+ * @param decimation [out] Calculated decimation factor.
+ * @param effective_rbw [out] Actual achieved RBW (optional, can be NULL).
+ * @return MEAS_OK on success.
+ */
 meas_status_t meas_dsp_rbw_calc(float rbw, float sample_rate, size_t *fft_len,
                                 size_t *decimation, float *effective_rbw) {
   if (!fft_len || !decimation)
@@ -196,6 +271,20 @@ meas_status_t meas_dsp_rbw_calc(float rbw, float sample_rate, size_t *fft_len,
   return MEAS_OK;
 }
 
+/**
+ * @brief Generates a digital waveform (DDS).
+ *
+ * Supports Sine, Square, Triangle, and Sawtooth waveforms.
+ *
+ * @param buffer Output buffer for generated samples (int16_t).
+ * @param length Number of samples to generate.
+ * @param freq Output frequency in Hz.
+ * @param sample_rate Sampling rate in Hz.
+ * @param type Waveform type.
+ * @param phase_acc [in/out] Phase accumulator state (optional, for continuous
+ * generation).
+ * @return MEAS_OK on success.
+ */
 meas_status_t meas_dsp_dds_gen(int16_t *buffer, size_t length, float freq,
                                float sample_rate, meas_dsp_wave_t type,
                                uint32_t *phase_acc) {
@@ -257,6 +346,14 @@ meas_status_t meas_dsp_dds_gen(int16_t *buffer, size_t length, float freq,
 // FFT / Windowing
 // ============================================================================
 
+/**
+ * @brief Initializes the FFT context.
+ *
+ * @param ctx Pointer to FFT context structure.
+ * @param length FFT length (must be a power of 2).
+ * @param inverse Set to true for Inverse FFT (IFFT), false for forward FFT.
+ * @return MEAS_OK on success.
+ */
 meas_status_t meas_dsp_fft_init(meas_dsp_fft_t *ctx, size_t length,
                                 bool inverse) {
   if (!ctx)
@@ -276,6 +373,16 @@ static uint32_t reverse_bits(uint32_t x, uint32_t bits) {
   return result;
 }
 
+/**
+ * @brief Executes the FFT or IFFT algorithm.
+ *
+ * Uses the Cooley-Tukey algorithm with in-place bit-reversal capabilities.
+ *
+ * @param ctx Pointer to initialized FFT context.
+ * @param input Input complex buffer.
+ * @param output Output complex buffer (can be same as input for in-place).
+ * @return MEAS_OK on success, MEAS_ERROR if length is not power of 2.
+ */
 meas_status_t meas_dsp_fft_exec(meas_dsp_fft_t *ctx,
                                 const meas_complex_t *input,
                                 meas_complex_t *output) {
@@ -294,20 +401,6 @@ meas_status_t meas_dsp_fft_exec(meas_dsp_fft_t *ctx,
     levels++;
 
   // 1. Bit Reversal Permutation
-  for (size_t i = 0; i < n; i++) {
-    size_t j = reverse_bits(i, levels);
-    if (j > i) {
-      // Swap (copy-swap logic simplifed given we want output)
-      // Since input might match output, we copy first then shuffle or shuffle
-      // carefully. Easiest correct way:
-      output[i] = input[j];
-      output[j] = input[i];
-    } else if (i == j) {
-      output[i] = input[i];
-    }
-  }
-  // The above loop is tricky if input!=output.
-  // Standard out-of-place bit-reversal copy:
   if (input != output) {
     for (size_t i = 0; i < n; i++) {
       size_t j = reverse_bits(i, levels);
@@ -377,6 +470,16 @@ meas_status_t meas_dsp_fft_exec(meas_dsp_fft_t *ctx,
   return MEAS_OK;
 }
 
+/**
+ * @brief Applies a window function to a real-valued signal buffer.
+ *
+ * Supports various window types (Hann, Hamming, Blackman, Rectangular).
+ *
+ * @param buffer Signal buffer to window (in-place modification).
+ * @param size Number of samples in the buffer.
+ * @param win_type Type of window function to apply.
+ * @return MEAS_OK on success.
+ */
 meas_status_t meas_dsp_apply_window(meas_real_t *buffer, size_t size,
                                     meas_dsp_window_t win_type) {
   if (!buffer)
@@ -421,6 +524,13 @@ meas_status_t meas_dsp_apply_window(meas_real_t *buffer, size_t size,
 
 int16_t meas_dsp_sin_table_1024[1024];
 
+/**
+ * @brief Initializes global DSP lookup tables.
+ *
+ * Typically generates a sine wave table used for mixing and signal generation.
+ *
+ * @return MEAS_OK on success.
+ */
 meas_status_t meas_dsp_tables_init(void) {
   // Generate one cycle of sine wave
   // Freq = 1 Hz, Sample Rate = 1024 Hz -> 1024 samples/cycle

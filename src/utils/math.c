@@ -120,33 +120,6 @@ static float fast_modff(float x, float *iptr) {
   return x;
 }
 
-static float quadratic_interpolation(float x, const float *table,
-                                     int table_size) {
-  int idx = (int)x;
-  float fract = x - idx;
-  if (idx < 0) {
-    idx = 0;
-    fract = 0.0f;
-  }
-  if (idx >= table_size - 1)
-    return table[table_size - 1];
-
-  float y0, y1, y2;
-  if (idx >= table_size - 2) {
-    y0 = table[idx];
-    y1 = table[idx + 1];
-    y2 = y1;
-  } else {
-    y0 = table[idx];
-    y1 = table[idx + 1];
-    y2 = table[idx + 2];
-  }
-
-  // Unified quadratic:
-  return y0 + fract * (y1 - y0) +
-         fract * (fract - 1.0f) * (y2 - 2.0f * y1 + y0) * 0.5f;
-}
-
 static void fast_sincosf(float angle, float *pSinVal, float *pCosVal) {
 #if !defined(F303) && !defined(AT32) && !defined(F072)
   *pSinVal = sinf(angle);
@@ -171,49 +144,60 @@ static void fast_sincosf(float angle, float *pSinVal, float *pCosVal) {
   uint16_t full_index = (uint16_t)scaled;
   float fract = scaled - full_index;
 
+  // Taylor Series Method (2nd Order):
+  // sin(a + h) = sin(a) + h*cos(a) - 0.5*h^2*sin(a)
+  // cos(a + h) = cos(a) - h*sin(a) - 0.5*h^2*cos(a)
+  //
+  // h = fract * step_size_rad
+  // step_size_rad = (2*PI) / table_size_full_circle = (PI/2) / table_quarter
+
+  float step_rad = (float)(MEAS_PI * 0.5) / (float)table_quarter;
+  float h = fract * step_rad;
+  float h2_05 = 0.5f * h * h;
+
+  // Determine Quadrant and Base Index
   uint8_t quad = full_index / table_quarter;
-  uint16_t in_quad_pos = full_index % table_quarter;
+  uint16_t idx = full_index % table_quarter;
 
-  float sin_interp = quadratic_interpolation(in_quad_pos + fract, sin_table_qtr,
-                                             QTR_WAVE_TABLE_SIZE);
+  float s0, c0;
 
-  float comp_angle = (float)table_quarter - (in_quad_pos + fract);
+  // Fetch Base sin(a) and cos(a) from first quadrant LUT
+  // LUT contains 0..PI/2.
+  // sin(idx) = table[idx]
+  // cos(idx) = sin(90 - idx) = table[quarter - idx]
 
-  float cos_interp =
-      quadratic_interpolation(comp_angle, sin_table_qtr, QTR_WAVE_TABLE_SIZE);
+  // Safety for table access
+  float val_s = sin_table_qtr[idx];
+  float val_c = sin_table_qtr[table_quarter - idx];
 
+  // Apply Quadrant Rotation to base s0, c0
   switch (quad) {
-  case 0:
-    if (pSinVal)
-      *pSinVal = sin_interp;
-    if (pCosVal)
-      *pCosVal = cos_interp;
+  case 0: // 0..90
+    s0 = val_s;
+    c0 = val_c;
     break;
-  case 1:
-    if (pSinVal)
-      *pSinVal = cos_interp;
-    if (pCosVal)
-      *pCosVal = -sin_interp;
+  case 1: // 90..180
+    s0 = val_c;
+    c0 = -val_s;
     break;
-  case 2:
-    if (pSinVal)
-      *pSinVal = -sin_interp;
-    if (pCosVal)
-      *pCosVal = -cos_interp;
+  case 2: // 180..270
+    s0 = -val_s;
+    c0 = -val_c;
     break;
-  case 3:
-    if (pSinVal)
-      *pSinVal = -cos_interp;
-    if (pCosVal)
-      *pCosVal = sin_interp;
+  case 3: // 270..360
+    s0 = -val_c;
+    c0 = val_s;
     break;
   default:
-    if (pSinVal)
-      *pSinVal = 0.0f;
-    if (pCosVal)
-      *pCosVal = 1.0f;
-    break;
+    s0 = 0.0f;
+    c0 = 1.0f;
   }
+
+  // Taylor Expansion
+  if (pSinVal)
+    *pSinVal = s0 + h * c0 - h2_05 * s0;
+  if (pCosVal)
+    *pCosVal = c0 - h * s0 - h2_05 * c0;
 #endif
 }
 

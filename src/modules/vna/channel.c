@@ -10,6 +10,7 @@
 #include "measlib/core/event.h"
 #include "measlib/drivers/hal.h"
 #include <stddef.h>
+#include <string.h>
 
 // -- Private Event Handler --
 
@@ -349,3 +350,32 @@ const meas_channel_api_t vna_channel_api = {.base =
                                             .start_sweep = vna_start_sweep,
                                             .abort_sweep = vna_abort_sweep,
                                             .tick = vna_fsm_tick};
+
+// ============================================================================
+// Public Initializer
+// ============================================================================
+
+meas_status_t meas_vna_channel_init(meas_vna_channel_t *ch,
+                                    meas_trace_t *trace) {
+  if (!ch || !trace) {
+    return MEAS_ERROR;
+  }
+
+  // 1. Zero out context
+  memset(ch, 0, sizeof(meas_vna_channel_t));
+
+  // 2. Set VTable
+  ch->base.base.api = (const meas_object_api_t *)&vna_channel_api;
+
+  // 3. Set Defaults
+  ch->state = VNA_CH_STATE_IDLE;
+  ch->start_freq_hz = VNA_MIN_FREQ;
+  ch->stop_freq_hz = VNA_MAX_FREQ;
+  ch->points = VNA_MAX_POINTS;
+  ch->output_trace = trace;
+
+  // 4. Initialize Data Ready Flag
+  ch->is_data_ready = false;
+
+  return MEAS_OK;
+}

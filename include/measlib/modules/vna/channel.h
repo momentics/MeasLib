@@ -83,4 +83,13 @@ typedef struct {
 
 } meas_vna_channel_t;
 
+/**
+ * @brief Initialize the VNA Channel.
+ * @param ch Pointer to channel structure.
+ * @param trace Pointer to trace structure for output.
+ * @return MEAS_OK on success.
+ */
+meas_status_t meas_vna_channel_init(meas_vna_channel_t *ch,
+                                    meas_trace_t *trace);
+
 #endif // MEASLIB_MODULES_VNA_CHANNEL_H

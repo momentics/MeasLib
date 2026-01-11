@@ -59,4 +59,10 @@ meas_status_t meas_subscribe(meas_object_t *pub, meas_event_cb_t cb, void *ctx);
  */
 meas_status_t meas_event_publish(meas_event_t ev);
 
+/**
+ * @brief Dispatch pending events to subscribers.
+ * Internal loop or called by main superloop.
+ */
+void meas_dispatch_events(void);
+
 #endif // MEASLIB_CORE_EVENT_H

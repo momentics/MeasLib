@@ -91,6 +91,9 @@ MeasLib/
 │   │   └── dmm/
 │   ├── ui/
 │   └── utils/
+└── tests/              # Host-based Test Suite
+    ├── mocks/          # Simulated hardware drivers
+    └── src/            # Unit/Integration tests
 ```
 
 ## 1. Memory Management (No-Heap Design)
