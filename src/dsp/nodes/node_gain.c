@@ -1,20 +1,19 @@
 /**
- * @file node_basic.c
- * @brief Basic Processing Nodes (Gain, Offset, Passthrough).
+ * @file node_gain.c
+ * @brief Gain Processing Node.
  *
  * @author Architected by momentics <momentics@gmail.com>
  * @copyright (c) 2026 momentics
  */
 
 #include "measlib/dsp/chain.h"
+#include "measlib/dsp/node_types.h"
 #include "measlib/types.h"
 #include <stddef.h>
 
 // ============================================================================
 // Gain Node (Y = X * Gain)
 // ============================================================================
-
-#include "measlib/dsp/node_types.h"
 
 static const char *node_gain_get_name(meas_object_t *obj) {
   (void)obj;

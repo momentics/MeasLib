@@ -85,19 +85,15 @@ add_library(MeasLib STATIC
     src/ui/core.c
     src/ui/input.c
 
-    # Modules
-    src/modules/vna/channel.c
-
     # Utils
     src/utils/math.c
     src/dsp/dsp.c
     src/dsp/analysis.c
     src/dsp/chain.c
-    src/dsp/nodes/node_basic.c
+    src/dsp/nodes/node_gain.c
     src/dsp/nodes/node_spectral.c
     src/dsp/nodes/node_sink.c
     src/dsp/nodes/node_math.c
-    src/dsp/nodes/node_source.c
     src/dsp/nodes/node_source.c
     src/dsp/nodes/node_radio.c
     src/dsp/nodes/node_calibration.c
@@ -105,6 +101,8 @@ add_library(MeasLib STATIC
     # Modules
     src/modules/sa/channel.c
     src/modules/gen/channel.c
+    src/modules/vna/channel.c
+    src/modules/dmm/channel.c
 
     # Drivers
     src/drivers/registry.c

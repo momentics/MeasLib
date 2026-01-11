@@ -44,7 +44,7 @@ meas_status_t meas_dmm_channel_init(meas_dmm_channel_t *ch) {
 
   // 4. Build Chain
   // Input (from Driver) -> Linear -> Sink -> Trace
-  meas_chain_api_t *api = ch->pipeline.api;
+  const meas_chain_api_t *api = ch->pipeline.api;
   api->append(&ch->pipeline, &ch->node_linear);
   api->append(&ch->pipeline, &ch->node_sink);
 
@@ -56,10 +56,13 @@ meas_status_t meas_dmm_get_reading(meas_dmm_channel_t *ch, meas_real_t *avg,
   if (!ch || !ch->output_trace) {
     return MEAS_ERROR;
   }
+  (void)avg;
+  (void)min_val;
+  (void)max_val;
 
   // Get data from trace
-  const meas_real_t *y_data = NULL;
-  size_t count = 0;
+  // const meas_real_t *y_data = NULL;
+  // size_t count = 0;
   // Assuming trace API allows direct access (or we add a helper)
   // For now, we assume standard trace_get_data
   // meas_trace_api_t *t_api = (meas_trace_api_t *)ch->output_trace->base.api;

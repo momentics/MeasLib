@@ -64,6 +64,14 @@ MeasLib/
 │   ├── dsp/
 │   │   │   ├── dsp.c           # Core DSP (Mixing, FFT)
 │   │   │   ├── nodes/          # Processing Nodes Implementation
+│   │   │   │   ├── node_basic.c    # DEPRECATED (Renamed to node_gain)
+│   │   │   │   ├── node_gain.c     # Gain, Linear, Offset
+│   │   │   │   ├── node_math.c     # Mag, Phase, LogMag, GroupDelay, Avg
+│   │   │   │   ├── node_spectral.c # FFT, Windowing
+│   │   │   │   ├── node_source.c   # WaveGen (Sine, Square)
+│   │   │   │   ├── node_radio.c    # DDC, S-Param
+│   │   │   │   ├── node_sink.c     # Trace Sink
+│   │   │   │   └── node_calibration.c # Vector Error Correction
 │   │   │   └── analysis.c      # High-level Logic
 │   ├── modules/                # Domain Logic Implementation
 │   │   ├── vna/
@@ -607,6 +615,13 @@ Replaces hardcoded function calls with a configurable chain of **Nodes**:
 * **Node Interface**: Standardized `process(ctx, input, output)` vtable.
 * **Zero-Copy**: Nodes pass pointers (`meas_data_block_t*`) downstream.
 * **Static Memory**: Nodes are allocated in `.bss` or Stack, never Heap.
+* **Implemented Nodes**:
+  * `Node_Gain`, `Node_Linear` (Basic Math)
+  * `Node_Warning`, `Node_FFT` (Spectral)
+  * `Node_Magnitude`, `Node_LogMag`, `Node_Phase`, `Node_GroupDelay`, `Node_Average` (Analysis)
+  * `Node_DDC`, `Node_SParam`, `Node_Calibration` (Radio/VNA)
+  * `Node_WaveGen` (Source)
+  * `Node_SinkTrace` (Output)
 
 ## 9. Execution Model (Bare Metal)
 

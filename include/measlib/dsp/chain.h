@@ -114,10 +114,17 @@ void meas_node_link(meas_node_t *source, meas_node_t *destination);
 
 /**
  * @brief Initialize a Gain Node (Y = X * Gain).
- * Implemented in nodes/node_basic.c
+ * Implemented in nodes/node_gain.c
  */
 meas_status_t meas_node_gain_init(meas_node_t *node, void *ctx_mem,
                                   meas_real_t gain);
+
+/**
+ * @brief Initialize a Linear Node (Y = X * Slope + Intercept).
+ * Implemented in nodes/node_gain.c
+ */
+meas_status_t meas_node_linear_init(meas_node_t *node, void *ctx_mem,
+                                    meas_real_t slope, meas_real_t intercept);
 
 /**
  * @brief Initialize a Windowing Node (Apply Window Function).
