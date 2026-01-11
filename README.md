@@ -22,8 +22,14 @@ The system architecture is strictly divided into two logical planes to ensure de
 * **No Allocation**: All data paths use static/shared memory.
 * **Files**: `data.h`, `trace.h`, `render.h` (UI).
 
+## Project Structure
+
 ```text
 MeasLib/
+├── boards/             # Target Specific Implementations
+│   ├── AT32F403/       # Cortex-M4F (Artery)
+│   ├── STM32F072/      # Cortex-M0 (ST)
+│   └── STM32F303/      # Cortex-M4F (ST)
 ├── include/
 │   ├── measlib/
 │   │   ├── types.h             # Core Primitives
@@ -37,6 +43,10 @@ MeasLib/
 │   │   ├── core/               # Framework Kernel
 │   │   │   ├── object.h        # Base Object
 │   │   │   ├── device.h        # Device Facade
+│   │   │   ├── channel.h       # Measurement Channel
+│   │   │   ├── data.h          # Data Blocks
+│   │   │   ├── trace.h         # Trace Handling
+│   │   │   ├── marker.h        # Markers
 │   │   │   ├── event.h         # Messaging
 │   │   │   ├── io.h            # Streams
 │   │   │   └── storage.h       # Filesystem
@@ -55,24 +65,25 @@ MeasLib/
 │   │   │   ├── core.h
 │   │   │   ├── input.h         # Touch Cal & Events
 │   │   │   ├── render.h
+│   │   │   ├── menu.h          # Menu System
 │   │   │   └── components/     # Reusable Widgets
 │   │   └── drivers/            # Abstract Hardware Interfaces
 │   │       └── hal.h
 ├── src/
+│   ├── main.c                  # Entry Point
 │   ├── core/
 │   ├── drivers/
 │   ├── dsp/
-│   │   │   ├── dsp.c           # Core DSP (Mixing, FFT)
-│   │   │   ├── nodes/          # Processing Nodes Implementation
-│   │   │   │   ├── node_basic.c    # DEPRECATED (Renamed to node_gain)
-│   │   │   │   ├── node_gain.c     # Gain, Linear, Offset
-│   │   │   │   ├── node_math.c     # Mag, Phase, LogMag, GroupDelay, Avg
-│   │   │   │   ├── node_spectral.c # FFT, Windowing
-│   │   │   │   ├── node_source.c   # WaveGen (Sine, Square)
-│   │   │   │   ├── node_radio.c    # DDC, S-Param
-│   │   │   │   ├── node_sink.c     # Trace Sink
-│   │   │   │   └── node_calibration.c # Vector Error Correction
-│   │   │   └── analysis.c      # High-level Logic
+│   │   ├── dsp.c           # Core DSP (Mixing, FFT)
+│   │   ├── nodes/          # Processing Nodes Implementation
+│   │   │   ├── node_gain.c     # Gain, Linear, Offset
+│   │   │   ├── node_math.c     # Mag, Phase, LogMag, GroupDelay, Avg
+│   │   │   ├── node_spectral.c # FFT, Windowing
+│   │   │   ├── node_source.c   # WaveGen (Sine, Square)
+│   │   │   ├── node_radio.c    # DDC, S-Param
+│   │   │   ├── node_sink.c     # Trace Sink
+│   │   │   └── node_calibration.c # Vector Error Correction
+│   │   └── analysis.c      # High-level Logic
 │   ├── modules/                # Domain Logic Implementation
 │   │   ├── vna/
 │   │   ├── sa/
@@ -80,16 +91,6 @@ MeasLib/
 │   │   └── dmm/
 │   ├── ui/
 │   └── utils/
-│   └── boards/                 # Target Specific Implementations
-│       ├── STM32F303/          # Cortex-M4F
-│       │   └── include/measlib/boards/
-│       │       ├── dsp_ops.h   # ASM Optimizations (SMLABB)
-│       │       └── math_ops.h  # FPU Instructions (VSQRT)
-│       ├── STM32F072/          # Cortex-M0
-│       │   └── include/measlib/boards/
-│       │       ├── dsp_ops.h   # Software Fallbacks
-│       │       └── math_ops.h
-
 ```
 
 ## 1. Memory Management (No-Heap Design)
