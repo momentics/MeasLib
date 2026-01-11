@@ -20,3 +20,14 @@ meas_status_t meas_trace_get_data(meas_trace_t *t, const meas_real_t **x,
   }
   return MEAS_ERROR;
 }
+
+meas_status_t meas_trace_copy_data(meas_trace_t *t, const void *data,
+                                   size_t size) {
+  if (t && t->base.api) {
+    const meas_trace_api_t *api = (const meas_trace_api_t *)t->base.api;
+    if (api->copy_data) {
+      return api->copy_data(t, data, size);
+    }
+  }
+  return MEAS_ERROR;
+}

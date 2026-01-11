@@ -31,6 +31,8 @@ MeasLib/
 │   │   │   └── math.h          # Interpolation, Approx, Statistics
 │   │   ├── dsp/
 │   │   │   ├── dsp.h           # FFT, Windowing, Filtering
+│   │   │   ├── chain.h         # Node Pipeline
+│   │   │   ├── node_types.h    # Shared Context Structs
 │   │   │   └── analysis.h      # Peak Search, Regression, Matching
 │   │   ├── core/               # Framework Kernel
 │   │   │   ├── object.h        # Base Object
@@ -61,6 +63,7 @@ MeasLib/
 │   ├── drivers/
 │   ├── dsp/
 │   │   │   ├── dsp.c           # Core DSP (Mixing, FFT)
+│   │   │   ├── nodes/          # Processing Nodes Implementation
 │   │   │   └── analysis.c      # High-level Logic
 │   ├── modules/                # Domain Logic Implementation
 │   │   ├── vna/

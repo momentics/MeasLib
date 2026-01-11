@@ -176,4 +176,16 @@ meas_status_t meas_dsp_dds_gen(int16_t *buffer, size_t length, float freq,
                                float sample_rate, meas_dsp_wave_t type,
                                uint32_t *phase_acc);
 
+/**
+ * @brief Shared Sine Table (1024 points, Int16).
+ * Used by DDC nodes to avoid duplication.
+ */
+extern int16_t meas_dsp_sin_table_1024[1024];
+
+/**
+ * @brief Initialize Shared DSP Tables.
+ * Must be called at startup.
+ */
+meas_status_t meas_dsp_tables_init(void);
+
 #endif // MEASLIB_DSP_DSP_H

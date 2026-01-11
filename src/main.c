@@ -14,6 +14,7 @@
 #include "measlib/core/device.h"
 #include "measlib/core/event.h"
 #include "measlib/drivers/api.h"
+#include "measlib/dsp/dsp.h"
 #include "measlib/ui/core.h"
 
 // -- Global Singletons (Statically Allocated) --
@@ -37,6 +38,7 @@ extern void meas_dispatch_events(void);
 int main(void) {
   // 1. Hardware Initialization
   sys_init();
+  meas_dsp_tables_init();
 
   // 2. Main Superloop
   while (1) {

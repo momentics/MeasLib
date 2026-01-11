@@ -14,9 +14,7 @@
 // Gain Node (Y = X * Gain)
 // ============================================================================
 
-typedef struct {
-  meas_real_t gain;
-} node_gain_ctx_t;
+#include "measlib/dsp/node_types.h"
 
 static const char *node_gain_get_name(meas_object_t *obj) {
   (void)obj;
@@ -26,7 +24,7 @@ static const char *node_gain_get_name(meas_object_t *obj) {
 static meas_status_t node_gain_process(meas_node_t *node,
                                        const meas_data_block_t *input,
                                        meas_data_block_t *output) {
-  node_gain_ctx_t *ctx = (node_gain_ctx_t *)node->impl;
+  meas_node_gain_ctx_t *ctx = (meas_node_gain_ctx_t *)node->impl;
   if (!ctx || !input || !output) {
     return MEAS_ERROR;
   }
@@ -89,7 +87,7 @@ meas_status_t meas_node_gain_init(meas_node_t *node, void *ctx_mem,
     return MEAS_ERROR;
   }
 
-  node_gain_ctx_t *ctx = (node_gain_ctx_t *)ctx_mem;
+  meas_node_gain_ctx_t *ctx = (meas_node_gain_ctx_t *)ctx_mem;
   ctx->gain = gain;
 
   node->api = &node_gain_api;

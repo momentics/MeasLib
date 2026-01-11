@@ -12,10 +12,6 @@
 #include <math.h>
 #include <string.h>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
 // ============================================================================
 // Mixing (DDC)
 // ============================================================================
@@ -153,7 +149,8 @@ meas_status_t meas_dsp_goertzel(const int16_t *input, size_t length,
   meas_real_t real = q1 - q2 * cosine;
   meas_real_t imag = q2 * sine;
 
-  *magnitude = (float)meas_math_sqrt(real * real + imag * imag);
+  meas_complex_t z = {.re = real, .im = imag};
+  *magnitude = (float)meas_cabs(z);
   if (phase) {
     *phase = (float)meas_math_atan2(imag, real);
   }
@@ -393,17 +390,40 @@ meas_status_t meas_dsp_apply_window(meas_real_t *buffer, size_t size,
     case DSP_WINDOW_RECT:
       w = 1.0;
       break;
-    case DSP_WINDOW_HANN:
-      w = 0.5 * (1.0 - cos(2.0 * M_PI * ratio));
+    case DSP_WINDOW_HANN: {
+      meas_real_t c;
+      meas_math_sincos(2.0 * MEAS_PI * ratio, NULL, &c);
+      w = 0.5 * (1.0 - c);
       break;
-    case DSP_WINDOW_HAMMING:
-      w = 0.54 - 0.46 * cos(2.0 * M_PI * ratio);
+    }
+    case DSP_WINDOW_HAMMING: {
+      meas_real_t c;
+      meas_math_sincos(2.0 * MEAS_PI * ratio, NULL, &c);
+      w = 0.54 - 0.46 * c;
       break;
-    case DSP_WINDOW_BLACKMAN:
-      w = 0.42 - 0.5 * cos(2.0 * M_PI * ratio) + 0.08 * cos(4.0 * M_PI * ratio);
+    }
+    case DSP_WINDOW_BLACKMAN: {
+      meas_real_t c1, c2;
+      meas_math_sincos(2.0 * MEAS_PI * ratio, NULL, &c1);
+      meas_math_sincos(4.0 * MEAS_PI * ratio, NULL, &c2);
+      w = 0.42 - 0.5 * c1 + 0.08 * c2;
       break;
+    }
     }
     buffer[i] *= w;
   }
   return MEAS_OK;
+}
+
+// ============================================================================
+// Shared Tables
+// ============================================================================
+
+int16_t meas_dsp_sin_table_1024[1024];
+
+meas_status_t meas_dsp_tables_init(void) {
+  // Generate one cycle of sine wave
+  // Freq = 1 Hz, Sample Rate = 1024 Hz -> 1024 samples/cycle
+  return meas_dsp_dds_gen(meas_dsp_sin_table_1024, 1024, 1.0f, 1024.0f,
+                          DSP_WAVE_SINE, NULL);
 }

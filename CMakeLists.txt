@@ -94,6 +94,17 @@ add_library(MeasLib STATIC
     src/dsp/analysis.c
     src/dsp/chain.c
     src/dsp/nodes/node_basic.c
+    src/dsp/nodes/node_spectral.c
+    src/dsp/nodes/node_sink.c
+    src/dsp/nodes/node_math.c
+    src/dsp/nodes/node_source.c
+    src/dsp/nodes/node_source.c
+    src/dsp/nodes/node_radio.c
+    src/dsp/nodes/node_calibration.c
+    
+    # Modules
+    src/modules/sa/channel.c
+    src/modules/gen/channel.c
 
     # Drivers
     src/drivers/registry.c

@@ -14,6 +14,9 @@
 
 #include "measlib/core/data.h"
 #include "measlib/core/object.h"
+#include "measlib/core/trace.h"
+#include "measlib/dsp/dsp.h"
+#include "measlib/modules/vna/cal.h"
 
 // ============================================================================
 // Processing Node (The Block)
@@ -104,5 +107,104 @@ meas_status_t meas_chain_init(meas_chain_t *chain);
  * managers).
  */
 void meas_node_link(meas_node_t *source, meas_node_t *destination);
+
+// ============================================================================
+// Standard Node Constructors
+// ============================================================================
+
+/**
+ * @brief Initialize a Gain Node (Y = X * Gain).
+ * Implemented in nodes/node_basic.c
+ */
+meas_status_t meas_node_gain_init(meas_node_t *node, void *ctx_mem,
+                                  meas_real_t gain);
+
+/**
+ * @brief Initialize a Windowing Node (Apply Window Function).
+ * Implemented in nodes/node_spectral.c
+ */
+meas_status_t meas_node_window_init(meas_node_t *node, void *ctx_mem,
+                                    meas_dsp_window_t type);
+
+/**
+ * @brief Initialize an FFT Node.
+ * Implemented in nodes/node_spectral.c
+ */
+meas_status_t meas_node_fft_init(meas_node_t *node, void *ctx_mem,
+                                 size_t length, bool inverse);
+
+/**
+ * @brief Initialize a Trace Sink Node.
+ * Writes incoming data to the target trace object.
+ * Implemented in nodes/node_sink.c
+ */
+meas_status_t meas_node_sink_trace_init(meas_node_t *node, void *ctx_mem,
+                                        meas_trace_t *target_trace);
+
+/**
+ * @brief Initialize a Magnitude Node (Complex -> Real).
+ * Y = sqrt(Re^2 + Im^2)
+ * Implemented in nodes/node_math.c
+ */
+meas_status_t meas_node_mag_init(meas_node_t *node, void *ctx_mem);
+
+/**
+ * @brief Initialize a Log Magnitude Node (Linear -> dB).
+ * Y = 20 * log10(X)
+ * Implemented in nodes/node_math.c
+ */
+meas_status_t meas_node_logmag_init(meas_node_t *node, void *ctx_mem);
+
+/**
+ * @brief Initialize a Phase Node (Complex -> Real in Radians).
+ * Implemented in nodes/node_math.c
+ */
+meas_status_t meas_node_phase_init(meas_node_t *node, void *ctx_mem);
+
+/**
+ * @brief Initialize a Group Delay Node.
+ * Calculates -dPhi/dOmega.
+ * Implemented in nodes/node_math.c
+ */
+meas_status_t meas_node_group_delay_init(meas_node_t *node, void *ctx_mem,
+                                         meas_real_t freq_step);
+
+/**
+ * @brief Initialize an Average Node (EMA).
+ * Implemented in nodes/node_math.c
+ */
+meas_status_t meas_node_avg_init(meas_node_t *node, void *ctx_mem,
+                                 meas_real_t alpha);
+
+/**
+ * @brief Initialize a Wave Generator Source Node.
+ * Generates Sine, Square, etc.
+ * Implemented in nodes/node_source.c
+ */
+meas_status_t meas_node_wavegen_init(meas_node_t *node, void *ctx_mem,
+                                     float freq, float sample_rate,
+                                     meas_dsp_wave_t type);
+
+/**
+ * @brief Initialize a DDC Node.
+ * Mixes input samples down to I/Q accumulators.
+ * Implemented in nodes/node_radio.c
+ */
+meas_status_t meas_node_ddc_init(meas_node_t *node, void *ctx_mem);
+
+/**
+ * @brief Initialize an S-Parameter Node.
+ * Calculates Gamma from I/Q accumulators.
+ * Implemented in nodes/node_radio.c
+ */
+meas_status_t meas_node_sparam_init(meas_node_t *node, void *ctx_mem);
+
+/**
+ * @brief Initialize a Calibration Node.
+ * Applies vector error correction.
+ * Implemented in nodes/node_calibration.c
+ */
+meas_status_t meas_node_cal_init(meas_node_t *node, void *ctx_mem,
+                                 meas_cal_t *cal_obj);
 
 #endif // MEASLIB_DSP_CHAIN_H

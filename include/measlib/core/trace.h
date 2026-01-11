@@ -56,8 +56,22 @@ typedef struct {
    * @param fmt Desired format.
    * @return meas_status_t
    */
-  meas_status_t (*set_format)(meas_trace_t *t, meas_trace_fmt_t fmt);
+
+  /**
+   * @brief Copy data into the trace buffer.
+   * @param t Trace instance.
+   * @param data Source buffer.
+   * @param size Size of data in bytes.
+   * @return meas_status_t
+   */
+  meas_status_t (*copy_data)(meas_trace_t *t, const void *data, size_t size);
 
 } meas_trace_api_t;
+
+/**
+ * @brief Helper: Copy data into trace.
+ */
+meas_status_t meas_trace_copy_data(meas_trace_t *t, const void *data,
+                                   size_t size);
 
 #endif // MEASLIB_CORE_TRACE_H

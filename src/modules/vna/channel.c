@@ -67,8 +67,25 @@ static void vna_fsm_tick(meas_channel_t *base_ch) {
     break;
 
   case VNA_CH_STATE_PROCESS:
-    // 1. Process Data (FFT / SOLT)
-    // ... (Math logic) ...
+    // 1. Process Data using Pipeline
+    {
+      // Assume RX buffer is accessible here.
+      // In a real generic system, we'd have a pointer to the buffer from the
+      // Event or RX Handle. For now, we mock a data block pointing to a static
+      // buffer or similar. Assuming RX HAL wrote to 'ch->rx_buffer' (implied)
+      static meas_complex_t dummy_buffer[1024]; // Temp placeholder for demo
+
+      meas_data_block_t block = {
+          .source_id = 0, // TODO: Set ID
+          .sequence = ch->current_point,
+          .size = 1024 * sizeof(meas_complex_t),
+          .data = dummy_buffer // In real data plane, this comes from DMA
+      };
+
+      if (ch->pipeline.api && ch->pipeline.api->run) {
+        ch->pipeline.api->run(&ch->pipeline, &block);
+      }
+    }
 
     // 2. Publish Data Ready Event (to UI/Storage)
     {
@@ -117,6 +134,30 @@ static meas_status_t vna_configure(meas_channel_t *base_ch) {
   // Subscribe to HAL events (In a real app, 'NULL' would be replaced by
   // specific HAL driver instances)
   meas_subscribe(NULL, vna_on_event, ch);
+
+  // -- Pipeline Initialization --
+  meas_chain_init(&ch->pipeline);
+
+  // 1. Init DDC Node
+  meas_node_ddc_init(&ch->node_ddc, &ch->ctx_ddc);
+
+  meas_node_sparam_init(&ch->node_sparam, &ch->ctx_sparam);
+
+  // 3. Init Cal Node
+  meas_node_cal_init(&ch->node_cal, &ch->ctx_cal, ch->active_cal);
+
+  // 4. Init Sink Node
+  if (ch->output_trace) {
+    meas_node_sink_trace_init(&ch->node_sink, &ch->ctx_sink, ch->output_trace);
+  }
+
+  // 5. Build Chain: DDC -> SParam -> Cal -> Sink
+  ch->pipeline.api->append(&ch->pipeline, &ch->node_ddc);
+  ch->pipeline.api->append(&ch->pipeline, &ch->node_sparam);
+  ch->pipeline.api->append(&ch->pipeline, &ch->node_cal);
+  if (ch->output_trace) {
+    ch->pipeline.api->append(&ch->pipeline, &ch->node_sink);
+  }
 
   return MEAS_OK;
 }

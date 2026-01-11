@@ -13,7 +13,11 @@
 #define MEASLIB_MODULES_VNA_CHANNEL_H
 
 #include "measlib/core/channel.h"
-#include <stdbool.h> // Required for 'bool' type
+#include "measlib/dsp/chain.h"
+#include "measlib/dsp/dsp.h"
+#include "measlib/dsp/node_types.h"
+#include "measlib/modules/vna/cal.h"
+#include <stdbool.h>
 
 typedef enum {
   VNA_CH_STATE_IDLE,
@@ -35,6 +39,27 @@ typedef struct {
   uint32_t stop_freq_hz;
   uint32_t points;
   uint32_t current_point;
+
+  // Processing Pipeline
+  meas_chain_t pipeline;
+
+  // Pipeline Nodes (Statically allocated)
+  meas_node_t node_ddc;
+  meas_node_t node_sparam;
+  meas_node_t node_cal;
+  meas_node_t node_sink;
+
+  // Contexts
+  meas_node_ddc_ctx_t ctx_ddc;
+  meas_node_sparam_ctx_t ctx_sparam;
+  meas_node_cal_ctx_t ctx_cal;
+
+  // Sink is simple pass-through or copying
+  meas_node_sink_ctx_t ctx_sink;
+
+  // External Dependencies
+  meas_trace_t *output_trace; // Target for the sink node
+  meas_cal_t *active_cal;     // Active Calibration (NULL if none)
 
   // Dependencies (Should be abstract HAL)
   void *hal_synth;
