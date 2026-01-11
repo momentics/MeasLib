@@ -29,9 +29,11 @@ static meas_status_t node_cal_process(meas_node_t *node,
     // Determine if we can do 0-copy or need to copy
     if (output->data != input->data) {
       // Copy needed if buffers differ
-      size_t copy_size =
-          (input->size < output->size) ? input->size : output->size;
-      // Assuming simplistic memcpy for now, but we don't have standard lib in
+      // Copy needed if buffers differ
+      // size_t copy_size = (input->size < output->size) ? input->size :
+      // output->size;
+
+      // Assuming simplistic memcpy for now...
       // this context effectively without string.h, so loop copy. However, we
       // can assume output->data == input->data if the chain manager allows
       // inplace. If not, we have to copy. For this node, we will assume

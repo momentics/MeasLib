@@ -1,96 +1,121 @@
 /*
-    ChibiOS - Copyright (C) 2006..2016 Giovanni Di Sirio
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-*/
-
-/*
- * STM32F072xB memory setup.
+ * Linker Script for STM32F072xB (Bare Metal)
+ * Flash: 128KB (98KB Code + 30KB CalData)
+ * RAM: 16KB
  */
+
+ENTRY(Reset_Handler)
+
 MEMORY
 {
-    flash0  : org = 0x08000000, len = 98k
-    flash1  : org = 0x00000000, len = 0
-    flash2  : org = 0x00000000, len = 0
-    flash3  : org = 0x00000000, len = 0
-    flash4  : org = 0x00000000, len = 0
-    flash5  : org = 0x00000000, len = 0
-    flash6  : org = 0x00000000, len = 0
-    flash7  : org = 0x08018800, len = 30k
-    ram0    : org = 0x20000000, len = 16k
-    ram1    : org = 0x00000000, len = 0
-    ram2    : org = 0x00000000, len = 0
-    ram3    : org = 0x00000000, len = 0
-    ram4    : org = 0x00000000, len = 0
-    ram5    : org = 0x00000000, len = 0
-    ram6    : org = 0x00000000, len = 0
-    ram7    : org = 0x00000000, len = 0
+    FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 98K
+    CALDATA (rx)    : ORIGIN = 0x08018800, LENGTH = 30K
+    RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 16K
 }
 
-/* For each data/text section two region are defined, a virtual region
-   and a load region (_LMA suffix).*/
-
-/* Flash region to be used for exception vectors.*/
-REGION_ALIAS("VECTORS_FLASH", flash0);
-REGION_ALIAS("VECTORS_FLASH_LMA", flash0);
-
-/* Flash region to be used for constructors and destructors.*/
-REGION_ALIAS("XTORS_FLASH", flash0);
-REGION_ALIAS("XTORS_FLASH_LMA", flash0);
-
-/* Flash region to be used for code text.*/
-REGION_ALIAS("TEXT_FLASH", flash0);
-REGION_ALIAS("TEXT_FLASH_LMA", flash0);
-
-/* Flash region to be used for read only data.*/
-REGION_ALIAS("RODATA_FLASH", flash0);
-REGION_ALIAS("RODATA_FLASH_LMA", flash0);
-
-/* Flash region to be used for various.*/
-REGION_ALIAS("VARIOUS_FLASH", flash0);
-REGION_ALIAS("VARIOUS_FLASH_LMA", flash0);
-
-/* Flash region to be used for RAM(n) initialization data.*/
-REGION_ALIAS("RAM_INIT_FLASH_LMA", flash0);
-
-/* Flash region to be saved calibration data */
-REGION_ALIAS("CALDATA_FLASH", flash7);
-
-/* RAM region to be used for Main stack. This stack accommodates the processing
-   of all exceptions and interrupts.*/
-REGION_ALIAS("MAIN_STACK_RAM", ram0);
-
-/* RAM region to be used for the process stack. This is the stack used by
-   the main() function.*/
-REGION_ALIAS("PROCESS_STACK_RAM", ram0);
-
-/* RAM region to be used for data segment.*/
-REGION_ALIAS("DATA_RAM", ram0);
-REGION_ALIAS("DATA_RAM_LMA", flash0);
-
-/* RAM region to be used for BSS segment.*/
-REGION_ALIAS("BSS_RAM", ram0);
-
-/* RAM region to be used for the default heap.*/
-REGION_ALIAS("HEAP_RAM", ram0);
-
-/* Generic rules inclusion.*/
-INCLUDE rules.ld
+/* stack end = end of RAM */
+__main_stack_end__ = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS
 {
-    .calsave (NOLOAD) : ALIGN(4)
+    /* Vector Table */
+    .isr_vector :
     {
+        . = ALIGN(4);
+        KEEP(*(.isr_vector)) /* Startup code */
+        KEEP(*(.vectors))    /* ChibiOS vectors.c uses .vectors section? Check vectors.c */
+        . = ALIGN(4);
+    } > FLASH
+
+    /* Code and Read-Only Data */
+    .text :
+    {
+        . = ALIGN(4);
+        *(.text)           /* .text sections (code) */
+        *(.text*)          /* .text* sections (code) */
+        *(.glue_7)         /* glue arm to thumb code */
+        *(.glue_7t)        /* glue thumb to arm code */
+        *(.eh_frame)
+
+        KEEP (*(.init))
+        KEEP (*(.fini))
+
+        . = ALIGN(4);
+        _etext = .;        /* define a global symbols at end of code */
+    } > FLASH
+
+    /* Constant Data */
+    .rodata :
+    {
+        . = ALIGN(4);
+        *(.rodata)         /* .rodata sections (constants, strings, etc.) */
+        *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
+        . = ALIGN(4);
+    } > FLASH
+
+    .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
+    .ARM : {
+    __exidx_start = .;
+      *(.ARM.exidx*)
+      __exidx_end = .;
+    } >FLASH
+
+    .preinit_array     :
+    {
+      PROVIDE_HIDDEN (__preinit_array_start = .);
+      KEEP (*(.preinit_array*))
+      PROVIDE_HIDDEN (__preinit_array_end = .);
+    } >FLASH
+    .init_array :
+    {
+      PROVIDE_HIDDEN (__init_array_start = .);
+      KEEP (*(SORT(.init_array.*)))
+      KEEP (*(.init_array*))
+      PROVIDE_HIDDEN (__init_array_end = .);
+    } >FLASH
+    .fini_array :
+    {
+      PROVIDE_HIDDEN (__fini_array_start = .);
+      KEEP (*(SORT(.fini_array.*)))
+      KEEP (*(.fini_array*))
+      PROVIDE_HIDDEN (__fini_array_end = .);
+    } >FLASH
+
+    /* Data (Initialized) */
+    _textdata = LOADADDR(.data);
+    
+    .data :
+    {
+        . = ALIGN(4);
+        _data = .;         /* create a global symbol at data start */
+        *(.data)           /* .data sections */
+        *(.data*)          /* .data* sections */
+        . = ALIGN(4);
+        _edata = .;        /* define a global symbol at data end */
+    } > RAM AT> FLASH
+
+    /* BSS (Uninitialized) */
+    .bss :
+    {
+        . = ALIGN(4);
+        _bss_start = .;    /* define a global symbol at bss start */
+        __bss_start__ = _bss_start;
+        *(.bss)
+        *(.bss*)
+        *(COMMON)
+
+        . = ALIGN(4);
+        _bss_end = .;      /* define a global symbol at bss end */
+        __bss_end__ = _bss_end;
+    } > RAM
+
+    /* Calibration Storage */
+    .calsave (NOLOAD) :
+    {
+        . = ALIGN(4);
         *(.calsave)
-    } > CALDATA_FLASH
+        . = ALIGN(4);
+    } > CALDATA
+
+    /* User Heap and Stack checks could be added here */
 }

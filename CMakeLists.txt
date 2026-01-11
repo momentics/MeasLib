@@ -27,17 +27,29 @@ if(MEASLIB_TARGET STREQUAL "STM32F072")
     set(MCU_FLAGS -mcpu=cortex-m0 -mthumb -DARM_MATH_CM0)
     set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F072/STM32F072xB.ld")
     set(STACK_FLAGS -Wl,--defsym=__process_stack_size__=0x1C0 -Wl,--defsym=__main_stack_size__=0x100)
-    add_compile_definitions(F072)
+    add_compile_definitions(F072 CORTEX_NUM_VECTORS=48)
+    set(STARTUP_SRCS 
+        boards/STM32F072/startup.s
+        boards/STM32F072/vectors.c
+    )
 elseif(MEASLIB_TARGET STREQUAL "STM32F303")
     set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
     set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F303/STM32F303xC.ld")
     set(STACK_FLAGS -Wl,--defsym=__process_stack_size__=0x400 -Wl,--defsym=__main_stack_size__=0x100)
-    add_compile_definitions(F303)
+    add_compile_definitions(F303 CORTEX_NUM_VECTORS=96)
+    set(STARTUP_SRCS 
+        boards/STM32F303/startup.s
+        boards/STM32F303/vectors.c
+    )
 elseif(MEASLIB_TARGET STREQUAL "AT32F403")
     set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
     set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/AT32F403/AT32F403xC.ld")
     set(STACK_FLAGS -Wl,--defsym=__process_stack_size__=0x400 -Wl,--defsym=__main_stack_size__=0x100)
-    add_compile_definitions(AT32)
+    add_compile_definitions(AT32 CORTEX_NUM_VECTORS=96)
+    set(STARTUP_SRCS 
+        boards/AT32F403/startup.s
+        boards/AT32F403/vectors.c
+    )
 else()
     message(FATAL_ERROR "Unsupported Target: ${MEASLIB_TARGET}")
 endif()
@@ -68,7 +80,8 @@ add_link_options(
     -Wl,--gc-sections
     -Wl,--print-memory-usage
     --specs=nano.specs
-    -lc -lm -lnosys
+    --specs=nosys.specs
+    -lc -lm
 )
 
 # Define the Core Library
@@ -110,6 +123,7 @@ add_library(MeasLib STATIC
     # Board Support
     boards/${MEASLIB_TARGET}/board.c
 )
+target_link_libraries(MeasLib PUBLIC m)
 
 # Includes
 target_include_directories(MeasLib PUBLIC 
@@ -120,7 +134,7 @@ target_include_directories(MeasLib PUBLIC
 
 # Startup / Entry Point (Dummy for now, usually would be startup_stm32*.s)
 # Using main.c as entry for the ELF to verify link
-add_executable(MeasLibFW src/main.c)
+add_executable(MeasLibFW src/main.c ${STARTUP_SRCS})
 target_link_libraries(MeasLibFW PRIVATE MeasLib)
 
 # Binary / Hex Generation
