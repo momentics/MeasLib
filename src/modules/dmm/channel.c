@@ -8,6 +8,15 @@
 
 #include "measlib/modules/dmm/channel.h"
 
+/**
+ * @note TEMPORARY STUB / PLACEHOLDER
+ * Current development priorities are focused entirely on the VNA module.
+ * This implementation is non-functional and serves only as an architectural
+ * reference.
+ *
+ * TODO: Implement full DMM business logic after VNA stabilization.
+ */
+
 static meas_status_t dmm_configure(meas_channel_t *base_ch) {
   meas_dmm_channel_t *ch = (meas_dmm_channel_t *)base_ch;
   if (!ch)

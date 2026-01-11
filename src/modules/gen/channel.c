@@ -8,6 +8,15 @@
 
 #include "measlib/modules/gen/channel.h"
 
+/**
+ * @note TEMPORARY STUB / PLACEHOLDER
+ * Current development priorities are focused entirely on the VNA module.
+ * This implementation is non-functional and serves only as an architectural
+ * reference.
+ *
+ * TODO: Implement full Signal Generator business logic after VNA stabilization.
+ */
+
 static meas_status_t gen_configure(meas_channel_t *base_ch) {
   (void)base_ch;
   return MEAS_OK;

@@ -10,6 +10,16 @@
 #include "measlib/core/event.h"
 #include <stddef.h>
 
+/**
+ * @note TEMPORARY STUB / PLACEHOLDER
+ * Current development priorities are focused entirely on the VNA module.
+ * This implementation is non-functional and serves only as an architectural
+ * reference.
+ *
+ * TODO: Implement full Spectrum Analyzer business logic after VNA
+ * stabilization.
+ */
+
 // -- Private Event Handler --
 
 /**
