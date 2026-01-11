@@ -23,16 +23,16 @@ include_directories(include)
 set(MEASLIB_TARGET "STM32F303" CACHE STRING "Target MCU: STM32F072, STM32F303 or AT32F403")
 
 # MCU Flags
-if(MEASLIB_TARGET STREQUAL "STM32F072")
-    set(MCU_FLAGS -mcpu=cortex-m0 -mthumb -DARM_MATH_CM0)
-    set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F072/STM32F072xB.ld")
-    set(STACK_FLAGS -Wl,--defsym=__process_stack_size__=0x1C0 -Wl,--defsym=__main_stack_size__=0x100)
-    add_compile_definitions(F072 CORTEX_NUM_VECTORS=48)
-    set(STARTUP_SRCS 
-        boards/STM32F072/startup.s
-        boards/STM32F072/vectors.c
-    )
-elseif(MEASLIB_TARGET STREQUAL "STM32F303")
+# if(MEASLIB_TARGET STREQUAL "STM32F072")
+#     set(MCU_FLAGS -mcpu=cortex-m0 -mthumb -DARM_MATH_CM0)
+#     set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F072/STM32F072xB.ld")
+#     # Stack sizes are handled in linker script or startup
+#     add_compile_definitions(F072)
+#     set(STARTUP_SRCS 
+#         boards/STM32F072/startup.s
+#         boards/STM32F072/vectors.c
+#     )
+if(MEASLIB_TARGET STREQUAL "STM32F303")
     set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
     set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F303/STM32F303xC.ld")
     # Stack sizes are handled in linker script or startup

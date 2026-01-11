@@ -16,15 +16,17 @@ Create a build directory and generate the build system. You must specify the tar
 
 **Supported Targets:**
 
-- `STM32F072`
+<!-- - `STM32F072` -->
 - `STM32F303` (Default)
 - `AT32F403`
 
+<!--
 **Example (STM32F072):**
 
 ```bash
 cmake -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-none-eabi.cmake -DMEASLIB_TARGET=STM32F072 -B build_stm32f072
 ```
+-->
 
 **Example (STM32F303):**
 
@@ -42,22 +44,11 @@ cmake -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-none-eabi.cmake -DMEASLIB_TARGE
 
 Build the firmware:
 
+<!--
 ```bash
 cmake --build build_stm32f072
 ```
-
-## Running Verification
-
-After a successful build, you can run the test executable to verify linkage and basic runtime initialization:
-
+-->
 ```bash
-./build/FirmwareElf
+cmake --build build_stm32f303
 ```
-
-## IDE Setup
-
-### VSCode
-
-This project includes a `.gitignore` that handles standard build artifacts.
-Install the **CMake Tools** and **C/C++** extensions.
-Point the extension to `build/compile_commands.json` if autodetect fails.
