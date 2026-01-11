@@ -59,7 +59,8 @@ typedef enum {
   PROP_TYPE_REAL, // Abstracted floating point (float/double/fixed)
   PROP_TYPE_STRING,
   PROP_TYPE_BOOL,
-  PROP_TYPE_COMPLEX
+  PROP_TYPE_COMPLEX,
+  PROP_TYPE_PTR
 } meas_prop_type_t;
 
 /**
@@ -74,6 +75,7 @@ typedef struct {
     char *s_val;
     bool b_val;
     meas_complex_t c_val;
+    void *p_val;
   };
 } meas_variant_t;
 

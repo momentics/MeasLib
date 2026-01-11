@@ -110,8 +110,8 @@ The framework is designed to run in environments **without dynamic memory alloca
 ### 1.2 Buffer Ownership
 
 * **Caller-Owned**: The framework never allocates data buffers internally.
-* **Shared Memory**: Traces and Drivers operate on buffers provided by the application (e.g., statically array `meas_real_t sweep_buffer[1001]`).
-* **Zero-Copy**: Data pointers are passed through the system without copying.
+* **Shared Memory**: Channels operate on buffers provided by the application via properties (e.g., `MEAS_PROP_VNA_BUFFER_PTR`).
+* **Zero-Copy**: Data pointers are passed through the system without copying (or via Event Payload).
 
 ## 2. Generic Object Model
 
@@ -127,7 +127,8 @@ typedef enum {
     PROP_TYPE_REAL,    // Abstracted floating point (float/double/fixed)
     PROP_TYPE_STRING,
     PROP_TYPE_BOOL,
-    PROP_TYPE_COMPLEX
+    PROP_TYPE_COMPLEX,
+    PROP_TYPE_PTR      // Pointer to external memory (Caller-Owned Buffers)
 } meas_prop_type_t;
 
 // Numeric Abstraction
@@ -153,6 +154,8 @@ typedef struct {
         meas_real_t r_val;
         char* s_val;
         bool b_val;
+        meas_complex_t c_val;
+        void* p_val; // For PROP_TYPE_PTR
     };
 } meas_variant_t;
 

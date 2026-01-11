@@ -13,6 +13,15 @@
 
 // -- Private Event Handler --
 
+// -- VTable Forward Declarations --
+static meas_status_t vna_set_prop(meas_object_t *obj, meas_id_t key,
+                                  meas_variant_t val);
+static meas_status_t vna_get_prop(meas_object_t *obj, meas_id_t key,
+                                  meas_variant_t *val);
+static const char *vna_get_name(meas_object_t *obj);
+
+// -- Private Event Handler --
+
 static void vna_on_event(const meas_event_t *ev, void *ctx) {
   if (!ev || !ctx)
     return;
@@ -20,7 +29,14 @@ static void vna_on_event(const meas_event_t *ev, void *ctx) {
 
   // Check if this event matters to us
   if (ev->type == EVENT_DATA_READY) {
-    // In real driver, check if source == ch->hal_rx
+    // If the driver provided a buffer pointer, we should use it.
+    if (ev->payload.type == PROP_TYPE_PTR && ev->payload.p_val != NULL) {
+      // Driver provided Zero-Copy buffer
+      ch->active_buffer = ev->payload.p_val;
+    } else {
+      // Fallback: Use our user-provided buffer
+      ch->active_buffer = ch->user_buffer;
+    }
     ch->is_data_ready = true;
   }
 }
@@ -51,8 +67,11 @@ static void vna_fsm_tick(meas_channel_t *base_ch) {
   case VNA_CH_STATE_ACQUIRE:
     // 1. Trigger DMA
     ch->is_data_ready = false;
+    ch->active_buffer = NULL; // Reset pointer
     if (rx && rx->start) {
-      rx->start(NULL, NULL, 1024); // Dummy buffer
+      // Pass the user buffer (if any). If NULL, driver MUST push data via event
+      // or error out.
+      rx->start(NULL, ch->user_buffer, ch->points * sizeof(meas_complex_t));
     }
     // 2. Transition to Wait
     ch->state = VNA_CH_STATE_WAIT_DMA;
@@ -69,21 +88,18 @@ static void vna_fsm_tick(meas_channel_t *base_ch) {
   case VNA_CH_STATE_PROCESS:
     // 1. Process Data using Pipeline
     {
-      // Assume RX buffer is accessible here.
-      // In a real generic system, we'd have a pointer to the buffer from the
-      // Event or RX Handle. For now, we mock a data block pointing to a static
-      // buffer or similar. Assuming RX HAL wrote to 'ch->rx_buffer' (implied)
-      static meas_complex_t dummy_buffer[1024]; // Temp placeholder for demo
-
       meas_data_block_t block = {
           .source_id = 0, // TODO: Set ID
           .sequence = ch->current_point,
-          .size = 1024 * sizeof(meas_complex_t),
-          .data = dummy_buffer // In real data plane, this comes from DMA
-      };
+          .size = ch->points * sizeof(meas_complex_t), // Actual utilized size
+          // Prefer active_buffer (from event), fallback to user_buffer
+          .data = ch->active_buffer ? ch->active_buffer : ch->user_buffer};
 
       if (ch->pipeline.api && ch->pipeline.api->run) {
-        ch->pipeline.api->run(&ch->pipeline, &block);
+        // Only run if we actually have data
+        if (block.data != NULL) {
+          ch->pipeline.api->run(&ch->pipeline, &block);
+        }
       }
     }
 
@@ -109,12 +125,15 @@ static void vna_fsm_tick(meas_channel_t *base_ch) {
       meas_event_publish(ev);
     } else {
       // Calc Next Freq
-      // Calc Next Freq
       // Linear Sweep: Start + (k * Step)
-      meas_real_t step = (meas_real_t)(ch->stop_freq_hz - ch->start_freq_hz) /
-                         (ch->points - 1);
-      ch->current_freq_hz =
-          ch->start_freq_hz + (uint32_t)(ch->current_point * step);
+      if (ch->points > 1) {
+        meas_real_t step = (meas_real_t)(ch->stop_freq_hz - ch->start_freq_hz) /
+                           (ch->points - 1);
+        ch->current_freq_hz =
+            ch->start_freq_hz + (uint32_t)(ch->current_point * step);
+      } else {
+        ch->current_freq_hz = ch->start_freq_hz;
+      }
 
       ch->state = VNA_CH_STATE_SETUP; // Loop
     }
@@ -126,10 +145,13 @@ static void vna_fsm_tick(meas_channel_t *base_ch) {
 
 static meas_status_t vna_configure(meas_channel_t *base_ch) {
   meas_vna_channel_t *ch = (meas_vna_channel_t *)base_ch;
-  // Apply properties to internal struct
-  ch->points = 101; // Default
-  ch->start_freq_hz = 1000000;
-  ch->stop_freq_hz = 30000000;
+  // Apply defaults if not set
+  if (ch->points == 0)
+    ch->points = VNA_MAX_POINTS;
+  if (ch->start_freq_hz == 0 || ch->start_freq_hz < VNA_MIN_FREQ)
+    ch->start_freq_hz = VNA_MIN_FREQ;
+  if (ch->stop_freq_hz == 0 || ch->stop_freq_hz > VNA_MAX_FREQ)
+    ch->stop_freq_hz = VNA_MAX_FREQ;
 
   // Subscribe to HAL events (In a real app, 'NULL' would be replaced by
   // specific HAL driver instances)
@@ -140,6 +162,7 @@ static meas_status_t vna_configure(meas_channel_t *base_ch) {
 
   // 1. Init DDC Node
   meas_node_ddc_init(&ch->node_ddc, &ch->ctx_ddc);
+  // DDC Context is initialized by init, table ptr set.
 
   meas_node_sparam_init(&ch->node_sparam, &ch->ctx_sparam);
 
@@ -159,11 +182,45 @@ static meas_status_t vna_configure(meas_channel_t *base_ch) {
     ch->pipeline.api->append(&ch->pipeline, &ch->node_sink);
   }
 
+  // Final Sanity Check: If Start > Stop, swap them or error?
+  // For configure, we will force Stop >= Start to ensure a valid state.
+  if (ch->start_freq_hz > ch->stop_freq_hz) {
+    // Auto-correct: Move Stop to Start (CW Mode default)
+    ch->stop_freq_hz = ch->start_freq_hz;
+  }
+
+  // VALIDATION: Check Buffer Capacity
+  // If we have a user buffer, points must fit.
+  if (ch->user_buffer != NULL) {
+    if (ch->points > ch->user_buffer_cap) {
+      // Error: Buffer too small for requested points
+      return MEAS_ERROR;
+    }
+  } else {
+    // No user buffer. Be permissive, assuming driver will Push via Event.
+    // But warn if Points > MAX_LOGICAL (if we care).
+    // For now, allow it.
+  }
+
   return MEAS_OK;
 }
 
 static meas_status_t vna_start_sweep(meas_channel_t *base_ch) {
   meas_vna_channel_t *ch = (meas_vna_channel_t *)base_ch;
+
+  // Validation: Cannot run if params are invalid
+  if (ch->start_freq_hz > ch->stop_freq_hz) {
+    return MEAS_ERROR;
+  }
+  // Check if points are valid logical range
+  if (ch->points == 0 || ch->points > VNA_MAX_POINTS) {
+    return MEAS_ERROR;
+  }
+  // Check memory safety
+  if (ch->user_buffer != NULL && ch->points > ch->user_buffer_cap) {
+    return MEAS_ERROR;
+  }
+
   ch->current_point = 0;
   ch->current_freq_hz = ch->start_freq_hz;
   ch->state = VNA_CH_STATE_SETUP;
@@ -176,11 +233,118 @@ static meas_status_t vna_abort_sweep(meas_channel_t *base_ch) {
   return MEAS_OK;
 }
 
+// -- Property Accessors --
+
+static const char *vna_get_name(meas_object_t *obj) {
+  (void)obj;
+  return "VNA_Channel";
+}
+
+static meas_status_t vna_set_prop(meas_object_t *obj, meas_id_t key,
+                                  meas_variant_t val) {
+  meas_vna_channel_t *ch = (meas_vna_channel_t *)obj;
+  switch (key) {
+  case MEAS_PROP_VNA_START_FREQ:
+    if (val.type == PROP_TYPE_INT64) {
+      if (val.i_val < VNA_MIN_FREQ || val.i_val > VNA_MAX_FREQ)
+        return MEAS_ERROR;
+      ch->start_freq_hz = (uint64_t)val.i_val;
+    } else if (val.type == PROP_TYPE_REAL) {
+      if (val.r_val < VNA_MIN_FREQ || val.r_val > VNA_MAX_FREQ)
+        return MEAS_ERROR;
+      ch->start_freq_hz = (uint64_t)val.r_val;
+    } else
+      return MEAS_ERROR;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_STOP_FREQ:
+    if (val.type == PROP_TYPE_INT64) {
+      if (val.i_val < VNA_MIN_FREQ || val.i_val > VNA_MAX_FREQ)
+        return MEAS_ERROR;
+      ch->stop_freq_hz = (uint64_t)val.i_val;
+    } else if (val.type == PROP_TYPE_REAL) {
+      if (val.r_val < VNA_MIN_FREQ || val.r_val > VNA_MAX_FREQ)
+        return MEAS_ERROR;
+      ch->stop_freq_hz = (uint64_t)val.r_val;
+    } else
+      return MEAS_ERROR;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_POINTS:
+    if (val.type == PROP_TYPE_INT64) {
+      if (val.i_val <= 0 || val.i_val > VNA_MAX_POINTS)
+        return MEAS_ERROR;
+      // If buffer is already set, validate immediately
+      if (ch->user_buffer != NULL && (size_t)val.i_val > ch->user_buffer_cap)
+        return MEAS_ERROR;
+      ch->points = (uint32_t)val.i_val;
+    } else
+      return MEAS_ERROR;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_BUFFER_PTR:
+    if (val.type == PROP_TYPE_PTR) {
+      ch->user_buffer = val.p_val;
+    } else
+      return MEAS_ERROR;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_BUFFER_CAP:
+    if (val.type == PROP_TYPE_INT64) {
+      if (val.i_val < 0)
+        return MEAS_ERROR;
+      ch->user_buffer_cap = (size_t)val.i_val;
+    } else
+      return MEAS_ERROR;
+    return MEAS_OK;
+
+  default:
+    return MEAS_ERROR;
+  }
+}
+
+static meas_status_t vna_get_prop(meas_object_t *obj, meas_id_t key,
+                                  meas_variant_t *val) {
+  meas_vna_channel_t *ch = (meas_vna_channel_t *)obj;
+  switch (key) {
+  case MEAS_PROP_VNA_START_FREQ:
+    val->type = PROP_TYPE_INT64;
+    val->i_val = ch->start_freq_hz;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_STOP_FREQ:
+    val->type = PROP_TYPE_INT64;
+    val->i_val = ch->stop_freq_hz;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_POINTS:
+    val->type = PROP_TYPE_INT64;
+    val->i_val = ch->points;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_BUFFER_PTR:
+    val->type = PROP_TYPE_PTR;
+    val->p_val = ch->user_buffer;
+    return MEAS_OK;
+
+  case MEAS_PROP_VNA_BUFFER_CAP:
+    val->type = PROP_TYPE_INT64;
+    val->i_val = (int64_t)ch->user_buffer_cap;
+    return MEAS_OK;
+
+  default:
+    return MEAS_ERROR;
+  }
+}
+
 // Global VTable Instance for VNA Channels
-const meas_channel_api_t vna_channel_api = {.base = {.get_name = NULL,
-                                                     .set_prop = NULL,
-                                                     .get_prop = NULL,
-                                                     .destroy = NULL},
+const meas_channel_api_t vna_channel_api = {.base =
+                                                {
+                                                    .get_name = vna_get_name,
+                                                    .set_prop = vna_set_prop,
+                                                    .get_prop = vna_get_prop,
+                                                    .destroy = NULL,
+                                                },
                                             .configure = vna_configure,
                                             .start_sweep = vna_start_sweep,
                                             .abort_sweep = vna_abort_sweep,

@@ -19,6 +19,16 @@
 #include "measlib/modules/vna/cal.h"
 #include <stdbool.h>
 
+#define MEAS_PROP_VNA_START_FREQ 0x1001
+#define MEAS_PROP_VNA_STOP_FREQ 0x1002
+#define MEAS_PROP_VNA_POINTS 0x1003
+#define MEAS_PROP_VNA_BUFFER_PTR 0x1004
+#define MEAS_PROP_VNA_BUFFER_CAP 0x1005
+
+#define VNA_MAX_POINTS 1024
+#define VNA_MIN_FREQ 10000      // 10 kHz
+#define VNA_MAX_FREQ 6000000000 // 6 GHz
+
 typedef enum {
   VNA_CH_STATE_IDLE,
   VNA_CH_STATE_SETUP,    // Configure Synth/Switch
@@ -34,11 +44,17 @@ typedef struct {
   // FSM State
   meas_vna_state_t state;
   volatile bool is_data_ready; // Inter-task Flag
-  uint32_t current_freq_hz;
-  uint32_t start_freq_hz;
-  uint32_t stop_freq_hz;
+  uint64_t current_freq_hz;
+  uint64_t start_freq_hz;
+  uint64_t stop_freq_hz;
   uint32_t points;
   uint32_t current_point;
+
+  // Data Buffers
+  // Caller-Owned Buffer (or Driver Provided via Event)
+  meas_complex_t *user_buffer;
+  size_t user_buffer_cap; // Capacity (in elements)
+  void *active_buffer;    // Pointer to current data (user_buffer or external)
 
   // Processing Pipeline
   meas_chain_t pipeline;
