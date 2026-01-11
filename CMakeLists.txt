@@ -91,6 +91,7 @@ add_library(MeasLib STATIC
     # Utils
     src/utils/math.c
     src/dsp/dsp.c
+    src/dsp/analysis.c
 
     # Drivers
     src/drivers/registry.c

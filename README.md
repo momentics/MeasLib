@@ -2,7 +2,6 @@
 
 The `MeasLib` project is a modular, C11-based generic firmware framework for measurement instruments (VNA, SA, Signal Generators, Multimeters). It is designed strictly for **Embedded Execution**, running directly on hardware (AT32, FPGA) without an underlying OS or transport layer.
 
-
 ## Architecture Overview
 
 The system architecture is strictly divided into two logical planes to ensure deterministic performance:
@@ -31,7 +30,8 @@ MeasLib/
 │   │   ├── utils/
 │   │   │   └── math.h          # Interpolation, Approx, Statistics
 │   │   ├── dsp/
-│   │   │   └── dsp.h           # FFT, Windowing, Filtering
+│   │   │   ├── dsp.h           # FFT, Windowing, Filtering
+│   │   │   └── analysis.h      # Peak Search, Regression, Matching
 │   │   ├── core/               # Framework Kernel
 │   │   │   ├── object.h        # Base Object
 │   │   │   ├── device.h        # Device Facade
@@ -60,6 +60,8 @@ MeasLib/
 │   ├── core/
 │   ├── drivers/
 │   ├── dsp/
+│   │   │   ├── dsp.c           # Core DSP (Mixing, FFT)
+│   │   │   └── analysis.c      # High-level Logic
 │   ├── modules/                # Domain Logic Implementation
 │   │   ├── vna/
 │   │   ├── sa/
@@ -67,6 +69,15 @@ MeasLib/
 │   │   └── dmm/
 │   ├── ui/
 │   └── utils/
+│   └── boards/                 # Target Specific Implementations
+│       ├── STM32F303/          # Cortex-M4F
+│       │   └── include/measlib/boards/
+│       │       ├── dsp_ops.h   # ASM Optimizations (SMLABB)
+│       │       └── math_ops.h  # FPU Instructions (VSQRT)
+│       ├── STM32F072/          # Cortex-M0
+│       │   └── include/measlib/boards/
+│       │       ├── dsp_ops.h   # Software Fallbacks
+│       │       └── math_ops.h
 
 ```
 
@@ -537,8 +548,13 @@ The framework includes a high-performance math layer to handle signal processing
 Provides generic algorithms for analysis.
 
 ```c
-// Interpolation
-meas_real_t meas_math_interp_linear(meas_real_t x, meas_real_t x0, meas_real_t y0, meas_real_t x1, meas_real_t y1);
+// Interpolation (Linear, Parabolic, Cosine)
+meas_real_t meas_math_interp_parabolic(meas_real_t y1, meas_real_t y2, meas_real_t y3, meas_real_t x);
+
+// Fast Math (Platform Optimized)
+// Uses ASM instructions (VSQRT) or LUTs on supported boards
+meas_real_t meas_math_sqrt(meas_real_t x);
+meas_real_t meas_math_sin(meas_real_t x);
 
 // Statistics
 void meas_math_stats(const meas_real_t* data, size_t count, meas_real_t* mean, meas_real_t* std_dev, meas_real_t* min_val, meas_real_t* max_val);
@@ -548,9 +564,13 @@ meas_real_t meas_cabs(meas_complex_t z);
 meas_real_t meas_carg(meas_complex_t z);
 ```
 
-### 8.2 DSP Engine (`meas_dsp.h`)
+### 8.2 DSP Engine (`meas_dsp.h` & `meas_dsp_analysis.h`)
 
-Abstracts hardware acceleration (e.g., ARM CMSIS-DSP, FPGA Offload).
+Abstracts hardware acceleration using `dsp_ops.h` (inline assembly for Cortex-M4 DSP instructions) instead of CMSIS-DSP dependency.
+
+**Analysis Layer**:
+* Peak Search (`meas_dsp_peak_find_max`)
+* RF Matching (`meas_dsp_lc_match`)
 
 ```c
 typedef enum {
