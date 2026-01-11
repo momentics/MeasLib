@@ -558,28 +558,42 @@ meas_status_t meas_cal_load(meas_cal_t* cal, const char* filename);
 
 The framework includes a high-performance math layer to handle signal processing tasks. It relies on `meas_real_t` to auto-scale precision (Float/Double/Fixed).
 
-### 8.1 Math Utilities (`meas_math.h`)
+### 8.1 Math Utilities (`measlib/utils/math.h`)
 
 Provides generic algorithms for analysis.
 
 ```c
-// Interpolation (Linear, Parabolic, Cosine)
+// Interpolation, Extrapolation & Approximation
+meas_real_t meas_math_interp_linear(meas_real_t x, meas_real_t x0, meas_real_t y0, meas_real_t x1, meas_real_t y1);
 meas_real_t meas_math_interp_parabolic(meas_real_t y1, meas_real_t y2, meas_real_t y3, meas_real_t x);
+meas_real_t meas_math_interp_cosine(meas_real_t y1, meas_real_t y2, meas_real_t x);
+meas_real_t meas_math_extrap_linear(meas_real_t x, meas_real_t x0, meas_real_t y0, meas_real_t x1, meas_real_t y1);
+bool meas_math_is_close(meas_real_t a, meas_real_t b, meas_real_t epsilon);
 
 // Fast Math (Platform Optimized)
 // Uses ASM instructions (VSQRT) or LUTs on supported boards
 meas_real_t meas_math_sqrt(meas_real_t x);
-meas_real_t meas_math_sin(meas_real_t x);
+meas_real_t meas_math_cbrt(meas_real_t x);
+meas_real_t meas_math_log(meas_real_t x);
+meas_real_t meas_math_log10(meas_real_t x);
+meas_real_t meas_math_exp(meas_real_t x);
+meas_real_t meas_math_atan(meas_real_t x);
+meas_real_t meas_math_atan2(meas_real_t y, meas_real_t x);
+meas_real_t meas_math_modf(meas_real_t x, meas_real_t *iptr);
+void meas_math_sincos(meas_real_t angle, meas_real_t *sin_val, meas_real_t *cos_val);
 
-// Statistics
+// Statistics & Filtering
 void meas_math_stats(const meas_real_t* data, size_t count, meas_real_t* mean, meas_real_t* std_dev, meas_real_t* min_val, meas_real_t* max_val);
+meas_real_t meas_math_rms(const meas_real_t *data, size_t count);
+void meas_math_sma(const meas_real_t *input, size_t count, size_t window_size, meas_real_t *output, size_t *out_count);
+meas_real_t meas_math_ema(meas_real_t current_avg, meas_real_t new_sample, meas_real_t alpha);
 
 // Complex Operations (if not supported by compiler)
 meas_real_t meas_cabs(meas_complex_t z);
 meas_real_t meas_carg(meas_complex_t z);
 ```
 
-### 8.2 DSP Engine (`meas_dsp.h` & `meas_dsp_analysis.h`)
+### 8.2 DSP Engine (`measlib/dsp/dsp.h` & `measlib/dsp/analysis.h`)
 
 Abstracts hardware acceleration using `dsp_ops.h` (inline assembly for Cortex-M4 DSP instructions) instead of CMSIS-DSP dependency.
 
@@ -609,7 +623,7 @@ meas_status_t meas_dsp_fft_exec(meas_dsp_fft_t* ctx, const meas_complex_t* input
 meas_status_t meas_dsp_apply_window(meas_real_t* buffer, size_t size, meas_dsp_window_t win_type);
 ```
 
-### 8.3 Processing Pipeline (`meas_chain_t`)
+### 8.3 Processing Pipeline (`measlib/dsp/chain.h`)
 
 A **Zero-Copy, Static Linked-List** architecture for defining signal processing flows at runtime.
 Replaces hardcoded function calls with a configurable chain of **Nodes**:
@@ -621,7 +635,7 @@ Replaces hardcoded function calls with a configurable chain of **Nodes**:
 * **Static Memory**: Nodes are allocated in `.bss` or Stack, never Heap.
 * **Implemented Nodes**:
   * `Node_Gain`, `Node_Linear` (Basic Math)
-  * `Node_Warning`, `Node_FFT` (Spectral)
+  * `Node_Window`, `Node_FFT` (Spectral)
   * `Node_Magnitude`, `Node_LogMag`, `Node_Phase`, `Node_GroupDelay`, `Node_Average` (Analysis)
   * `Node_DDC`, `Node_SParam`, `Node_Calibration` (Radio/VNA)
   * `Node_WaveGen` (Source)
