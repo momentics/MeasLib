@@ -569,6 +569,7 @@ meas_real_t meas_carg(meas_complex_t z);
 Abstracts hardware acceleration using `dsp_ops.h` (inline assembly for Cortex-M4 DSP instructions) instead of CMSIS-DSP dependency.
 
 **Analysis Layer**:
+
 * Peak Search (`meas_dsp_peak_find_max`)
 * RF Matching (`meas_dsp_lc_match`)
 
@@ -592,6 +593,17 @@ meas_status_t meas_dsp_fft_init(meas_dsp_fft_t* ctx, size_t length, bool inverse
 meas_status_t meas_dsp_fft_exec(meas_dsp_fft_t* ctx, const meas_complex_t* input, meas_complex_t* output);
 meas_status_t meas_dsp_apply_window(meas_real_t* buffer, size_t size, meas_dsp_window_t win_type);
 ```
+
+### 8.3 Processing Pipeline (`meas_chain_t`)
+
+A **Zero-Copy, Static Linked-List** architecture for defining signal processing flows at runtime.
+Replaces hardcoded function calls with a configurable chain of **Nodes**:
+
+`Source (ADC) -> Node (Window) -> Node (FFT) -> Sink (Trace)`
+
+* **Node Interface**: Standardized `process(ctx, input, output)` vtable.
+* **Zero-Copy**: Nodes pass pointers (`meas_data_block_t*`) downstream.
+* **Static Memory**: Nodes are allocated in `.bss` or Stack, never Heap.
 
 ## 9. Execution Model (Bare Metal)
 

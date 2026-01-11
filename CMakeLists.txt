@@ -92,6 +92,8 @@ add_library(MeasLib STATIC
     src/utils/math.c
     src/dsp/dsp.c
     src/dsp/analysis.c
+    src/dsp/chain.c
+    src/dsp/nodes/node_basic.c
 
     # Drivers
     src/drivers/registry.c
