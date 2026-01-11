@@ -56,6 +56,7 @@ zero_loop:
 
                 /* 5. Call Main */
 call_main:
+                bl      SystemInit
                 bl      main
 
                 /* 6. Default Exit */

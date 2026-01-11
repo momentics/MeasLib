@@ -25,6 +25,16 @@
 #ifndef VECTORS_H
 #define VECTORS_H
 
+#include <stdint.h>
+
+/**
+ * @brief   Number of interrupts in the vector table.
+ * @details 96 is chosen to cover the AT32F403 peripheral interrupts.
+ */
+#if !defined(CORTEX_NUM_VECTORS)
+#define CORTEX_NUM_VECTORS 96
+#endif
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
