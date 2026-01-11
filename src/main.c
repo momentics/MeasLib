@@ -23,8 +23,7 @@ static meas_channel_t *active_ch = NULL;
 static meas_ui_t *ui = NULL;
 
 // Dummy Implementations for Test Build
-void sys_init(void) {}
-void sys_wait_for_interrupt(void) {}
+void sys_wait_for_interrupt(void) { __asm("wfi"); }
 
 // Forward declarations of tick wrappers (implemented in respective core
 // sources)

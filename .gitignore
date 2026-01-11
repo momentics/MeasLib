@@ -82,8 +82,11 @@ dist/
 # Reference material
 ref/
 
+# Boards
+!boards/**
+
 # Documentation
-*.md
+/*.md
 !README.md
 !BUILD.md
 !doc/**

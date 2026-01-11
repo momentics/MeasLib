@@ -3,14 +3,18 @@
  * Flash: 256KB (142KB Code + 114KB CalData)
  * RAM: 40KB
  * CCM: 8KB
+ *
+ * @author Architected by momentics <momentics@gmail.com>
+ * @copyright (c) 2026 momentics
+ *
  */
 
 ENTRY(Reset_Handler)
 
 MEMORY
 {
-    FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 142K
-    CALDATA (rx)    : ORIGIN = 0x0801C800, LENGTH = 114K
+    FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 114K
+    CALDATA (rx)    : ORIGIN = 0x0801C800, LENGTH = 142K
     RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 40K
     CCMRAM (xrw)    : ORIGIN = 0x10000000, LENGTH = 8K
 }

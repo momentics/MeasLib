@@ -35,8 +35,8 @@ if(MEASLIB_TARGET STREQUAL "STM32F072")
 elseif(MEASLIB_TARGET STREQUAL "STM32F303")
     set(MCU_FLAGS -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -DARM_MATH_CM4)
     set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/boards/STM32F303/STM32F303xC.ld")
-    set(STACK_FLAGS -Wl,--defsym=__process_stack_size__=0x400 -Wl,--defsym=__main_stack_size__=0x100)
-    add_compile_definitions(F303 CORTEX_NUM_VECTORS=96)
+    # Stack sizes are handled in linker script or startup
+    add_compile_definitions(F303)
     set(STARTUP_SRCS 
         boards/STM32F303/startup.s
         boards/STM32F303/vectors.c

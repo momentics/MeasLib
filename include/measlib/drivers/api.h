@@ -49,4 +49,10 @@ uint32_t sys_enter_critical(void);
  */
 void sys_exit_critical(uint32_t state);
 
+/**
+ * @brief System Initialization
+ * Platform-specific hardware setup (Clocks, SysTick, HAL).
+ */
+void sys_init(void);
+
 #endif // MEASLIB_DRIVERS_API_H

@@ -1,5 +1,9 @@
 /*
  * Bare Metal Startup for STM32F303/AT32F403 (Cortex-M4F)
+ *
+ * @author Architected by momentics <momentics@gmail.com>
+ * @copyright (c) 2026 momentics
+ *
  */
 
                 .syntax unified
@@ -50,11 +54,15 @@ zero_bss:
                 mov     r0, #0
 zero_loop:
                 cmp     r2, r3
-                bge     call_main
+                bge     init_system
                 str     r0, [r2], #4
                 b       zero_loop
 
-                /* 5. Call Main */
+                /* 5. Initialize System */
+init_system:
+                bl      SystemInit
+
+                /* 6. Call Main */
 call_main:
                 bl      main
 

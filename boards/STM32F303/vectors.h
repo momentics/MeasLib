@@ -25,6 +25,16 @@
 #ifndef VECTORS_H
 #define VECTORS_H
 
+#include <stdint.h>
+
+#ifndef CORTEX_NUM_VECTORS
+/**
+ * @brief Number of peripheral interrupts.
+ * STM32F303 has 82 vectors. Next multiple of 8 is 88.
+ */
+#define CORTEX_NUM_VECTORS 88
+#endif
+
 /*===========================================================================*/
 /* Module constants.                                                         */
 /*===========================================================================*/
