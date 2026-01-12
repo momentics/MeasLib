@@ -13,11 +13,12 @@
 #define MEASLIB_UI_CORE_H
 
 #include "measlib/core/object.h"
+#include "measlib/types.h"
 #include "measlib/ui/render.h"
 
 // Forward decl
 typedef struct {
-  int16_t x, y, w, h;
+  meas_rect_t rect;
   meas_id_t widget_id; // ID for callback routing
   void (*on_touch)(void *ctx, int16_t x, int16_t y);
 } meas_ui_zone_t;

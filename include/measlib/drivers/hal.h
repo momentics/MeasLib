@@ -58,7 +58,7 @@ typedef struct {
  */
 typedef struct {
   // Returns raw point (adc values) or calibrated if driver handles it
-  meas_status_t (*read_point)(void *ctx, int16_t *x, int16_t *y);
+  meas_status_t (*read_point)(void *ctx, meas_point_t *pt);
 } meas_hal_touch_api_t;
 
 /**
@@ -108,12 +108,9 @@ typedef struct {
  * Low-level window/pixel access.
  */
 typedef struct {
-  meas_status_t (*set_window)(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                              uint16_t h);
-  meas_status_t (*fill_rect)(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                             uint16_t h, uint16_t color);
-  meas_status_t (*blit)(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                        uint16_t h, const void *pixels);
+  meas_status_t (*set_window)(void *ctx, meas_rect_t rect);
+  meas_status_t (*fill_rect)(void *ctx, meas_rect_t rect, meas_pixel_t color);
+  meas_status_t (*blit)(void *ctx, meas_rect_t rect, const void *pixels);
   meas_status_t (*set_orientation)(void *ctx, uint8_t rotation, bool bgr);
   uint16_t (*get_width)(void *ctx);
   uint16_t (*get_height)(void *ctx);

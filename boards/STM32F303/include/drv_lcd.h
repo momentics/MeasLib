@@ -14,6 +14,7 @@
 #define MAX_DRV_LCD_H
 
 #include "measlib/drivers/hal.h"
+#include "measlib/types.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -41,8 +42,7 @@ const meas_hal_display_api_t *meas_drv_lcd_get_api(void);
  * @param w Width of the window
  * @param h Height of the window
  */
-void meas_drv_lcd_set_window(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                             uint16_t h);
+void meas_drv_lcd_set_window(void *ctx, meas_rect_t rect);
 
 /**
  * @brief Fill a rectangular area with a solid color.
@@ -51,14 +51,10 @@ void meas_drv_lcd_set_window(void *ctx, uint16_t x, uint16_t y, uint16_t w,
  * operation is complete (safe for shared bus usage).
  *
  * @param ctx Driver Context
- * @param x Start X coordinate
- * @param y Start Y coordinate
- * @param w Width of the rectangle
- * @param h Height of the rectangle
- * @param color 16-bit RGB565 color
+ * @param rect Rectangle defining the area (x, y, w, h)
+ * @param color Pixel color
  */
-void meas_drv_lcd_fill_rect(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                            uint16_t h, uint16_t color);
+void meas_drv_lcd_fill_rect(void *ctx, meas_rect_t rect, meas_pixel_t color);
 
 /**
  * @brief Draw a bitmap (Blit) to a rectangular area.
@@ -66,15 +62,10 @@ void meas_drv_lcd_fill_rect(void *ctx, uint16_t x, uint16_t y, uint16_t w,
  * Uses DMA to transfer the buffer. Blocks until completion.
  *
  * @param ctx Driver Context
- * @param x Start X coordinate
- * @param y Start Y coordinate
- * @param w Width of the rectangle
- * @param h Height of the rectangle
  * @param pixels Pointer to the source buffer (array of RGB565 colors).
  *               Must be accessible by DMA (SRAM).
  */
-void meas_drv_lcd_blit(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                       uint16_t h, const uint16_t *pixels);
+void meas_drv_lcd_blit(void *ctx, meas_rect_t rect, const void *pixels);
 
 /**
  * @brief Set the display orientation and subpixel order.

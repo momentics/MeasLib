@@ -26,15 +26,15 @@ void meas_touch_service_poll(void) {
   if (!touch_srv.api || !touch_srv.api->read_point)
     return;
 
-  int16_t x = 0, y = 0;
+  meas_point_t pt = {0};
   // read_point returns MEAS_OK if touched/valid
-  meas_status_t status = touch_srv.api->read_point(touch_srv.ctx, &x, &y);
+  meas_status_t status = touch_srv.api->read_point(touch_srv.ctx, &pt);
 
   if (status == MEAS_OK) {
     // Touch Detected
     // Pack coordinates: X (low 16), Y (high 16)
     // Using int64 i_val
-    int64_t payload = ((int64_t)y << 16) | (x & 0xFFFF);
+    int64_t payload = ((int64_t)pt.y << 16) | (pt.x & 0xFFFF);
 
     meas_event_t ev = {.type = EVENT_INPUT_TOUCH,
                        .source = NULL,

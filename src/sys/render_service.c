@@ -88,14 +88,16 @@ void meas_render_service_update(void) {
                              .x_offset = 0,
                              .y_offset = y, // Global Y
                              .fg_color = 0xFFFF,
-                             .bg_color = 0x0000};
+                             .bg_color = 0x0000,
+                             .clip_rect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT}};
 
     // 2. Call UI Draw (Software Rasterizer)
     // The UI Logic uses the provided API to write into ctx.buffer
     ui_api->draw(&main_ui, &ctx, &meas_render_cell_api);
 
     // 3. Flush to Hardware (Zero Copy - DMA)
-    meas_drv_lcd_blit(lcd, 0, y, TILE_WIDTH, h, tile_buffer);
+    meas_rect_t rect = {0, y, TILE_WIDTH, h};
+    meas_drv_lcd_blit(lcd, rect, tile_buffer);
 
     // Clear Dirty Bit
     if (tile_idx < 32) {

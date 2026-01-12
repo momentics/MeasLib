@@ -306,13 +306,7 @@ static void lcd_dma_wait(void) {
 
 // --- High-Level Drawing API (Context Aware) ---
 
-void meas_drv_lcd_set_window(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                             uint16_t h) {
-  (void)ctx; // Validated by caller or ignored if singleton logic persists
-             // But for purity we should check initialization?
-             // static vars are still used for SPI/GPIO which are SINGLETON
-             // HARDWARE. So ctx is mostly for resolving width/height state.
-
+void meas_drv_lcd_set_window(void *ctx, meas_rect_t rect) {
   meas_drv_lcd_t *lcd = (meas_drv_lcd_t *)ctx;
   if (!lcd || !lcd->is_initialized)
     return;
@@ -321,25 +315,24 @@ void meas_drv_lcd_set_window(void *ctx, uint16_t x, uint16_t y, uint16_t w,
 
   lcd_spi_config_8bit();
   lcd_write_cmd(CMD_CASET);
-  lcd_write_data32((x << 16) | (x + w - 1));
+  lcd_write_data32((rect.x << 16) | (rect.x + rect.w - 1));
   lcd_write_cmd(CMD_RASET);
-  lcd_write_data32((y << 16) | (y + h - 1));
+  lcd_write_data32((rect.y << 16) | (rect.y + rect.h - 1));
   lcd_write_cmd(CMD_RAMWR);
   LCD_CS_HIGH();
 }
 
-void meas_drv_lcd_fill_rect(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                            uint16_t h, uint16_t color) {
+void meas_drv_lcd_fill_rect(void *ctx, meas_rect_t rect, meas_pixel_t color) {
   meas_drv_lcd_t *lcd = (meas_drv_lcd_t *)ctx;
   if (!lcd || !lcd->is_initialized)
     return;
 
-  uint32_t total_pixels = (uint32_t)w * h;
+  uint32_t total_pixels = (uint32_t)rect.w * rect.h;
   if (total_pixels == 0)
     return;
 
   // 1. Set Window (Internally handles CS and 8-bit config)
-  meas_drv_lcd_set_window(ctx, x, y, w, h);
+  meas_drv_lcd_set_window(ctx, rect);
 
   // 2. Prepare for Data Write
   LCD_CS_LOW();
@@ -376,17 +369,16 @@ void meas_drv_lcd_fill_rect(void *ctx, uint16_t x, uint16_t y, uint16_t w,
   LCD_CS_HIGH();
 }
 
-void meas_drv_lcd_blit(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                       uint16_t h, const uint16_t *pixels) {
+void meas_drv_lcd_blit(void *ctx, meas_rect_t rect, const void *pixels) {
   meas_drv_lcd_t *lcd = (meas_drv_lcd_t *)ctx;
   if (!lcd || !lcd->is_initialized)
     return;
 
-  uint32_t total_pixels = (uint32_t)w * h;
+  uint32_t total_pixels = (uint32_t)rect.w * rect.h;
   if (total_pixels == 0)
     return;
 
-  meas_drv_lcd_set_window(ctx, x, y, w, h);
+  meas_drv_lcd_set_window(ctx, rect);
 
   spi_wait_busy();
   lcd_spi_config_16bit();
@@ -472,27 +464,26 @@ uint16_t meas_drv_lcd_get_height(void *ctx) {
 
 // --- HAL Interface Wrappers ---
 
-static meas_status_t hal_lcd_set_window(void *ctx, uint16_t x, uint16_t y,
-                                        uint16_t w, uint16_t h) {
+static meas_status_t hal_lcd_set_window(void *ctx, meas_rect_t rect) {
   if (ctx != &lcd_ctx)
     return MEAS_ERROR;
-  meas_drv_lcd_set_window(ctx, x, y, w, h);
+  meas_drv_lcd_set_window(ctx, rect);
   return MEAS_OK;
 }
 
-static meas_status_t hal_lcd_fill_rect(void *ctx, uint16_t x, uint16_t y,
-                                       uint16_t w, uint16_t h, uint16_t color) {
+static meas_status_t hal_lcd_fill_rect(void *ctx, meas_rect_t rect,
+                                       meas_pixel_t color) {
   if (ctx != &lcd_ctx)
     return MEAS_ERROR;
-  meas_drv_lcd_fill_rect(ctx, x, y, w, h, color);
+  meas_drv_lcd_fill_rect(ctx, rect, color);
   return MEAS_OK;
 }
 
-static meas_status_t hal_lcd_blit(void *ctx, uint16_t x, uint16_t y, uint16_t w,
-                                  uint16_t h, const void *pixels) {
+static meas_status_t hal_lcd_blit(void *ctx, meas_rect_t rect,
+                                  const void *pixels) {
   if (ctx != &lcd_ctx)
     return MEAS_ERROR;
-  meas_drv_lcd_blit(ctx, x, y, w, h, (const uint16_t *)pixels);
+  meas_drv_lcd_blit(ctx, rect, pixels);
   return MEAS_OK;
 }
 

@@ -12,21 +12,8 @@
 #ifndef MEASLIB_UI_RENDER_H
 #define MEASLIB_UI_RENDER_H
 
+#include "measlib/types.h"
 #include <stdint.h>
-
-/**
- * @brief Pixel Type
- * Generally RGB565 (16-bit).
- */
-typedef uint16_t meas_pixel_t;
-
-/**
- * @brief Point
- */
-typedef struct {
-  int16_t x;
-  int16_t y;
-} meas_point_t;
 
 /**
  * @brief Render Context
@@ -41,6 +28,7 @@ typedef struct {
   int16_t y_offset;      /**< Global Y offset (if drawing to a tile) */
   meas_pixel_t fg_color; /**< Current Foreground Color */
   meas_pixel_t bg_color; /**< Current Background Color */
+  meas_rect_t clip_rect; /**< Drawing Clip Region */
 } meas_render_ctx_t;
 
 /**
@@ -67,6 +55,12 @@ typedef struct {
                           int16_t w, int16_t h, meas_pixel_t c1,
                           meas_pixel_t c2);
   void (*get_dims)(meas_render_ctx_t *ctx, int16_t *w, int16_t *h);
+  void (*set_clip_rect)(meas_render_ctx_t *ctx, meas_rect_t rect);
+  void (*draw_rect)(meas_render_ctx_t *ctx, meas_rect_t rect);
+  void (*draw_circle)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                      int16_t radius);
+  void (*fill_circle)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                      int16_t radius);
 } meas_render_api_t;
 
 #endif // MEASLIB_UI_RENDER_H

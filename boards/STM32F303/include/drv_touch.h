@@ -20,7 +20,9 @@
 /**
  * @brief Initialize the resistive touch driver.
  * Configures GPIOs and ADC2 for touch sensing.
- * @return void* Pointer to the driver context (or NULL on failure).
+ * @return void* Pointer to the// No change needed if it only exposes get_api or
+individual getters which I kept.
+// But checking is safer. NULL on failure).
  */
 void *meas_drv_touch_init(void);
 

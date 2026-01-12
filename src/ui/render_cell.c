@@ -15,9 +15,32 @@
 
 // --- Primitives (Cell/Tile Operations) ---
 
+// --- Clipping Helpers ---
+
+static bool is_inside_clip(meas_render_ctx_t *ctx, int16_t x, int16_t y) {
+  if (x < ctx->clip_rect.x || x >= ctx->clip_rect.x + ctx->clip_rect.w)
+    return false;
+  if (y < ctx->clip_rect.y || y >= ctx->clip_rect.y + ctx->clip_rect.h)
+    return false;
+  return true;
+}
+
+// --- Primitives (Cell/Tile Operations) ---
+
+static void cell_set_clip_rect(meas_render_ctx_t *ctx, meas_rect_t rect) {
+  if (!ctx)
+    return;
+  ctx->clip_rect = rect;
+}
+
 static void cell_draw_pixel(meas_render_ctx_t *ctx, int16_t x, int16_t y) {
   if (!ctx || !ctx->buffer)
     return;
+
+  // Clip (Global)
+  if (!is_inside_clip(ctx, x, y))
+    return;
+
   int16_t lx = x - ctx->x_offset;
   int16_t ly = y - ctx->y_offset;
 
@@ -31,7 +54,10 @@ static void cell_draw_line(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
   if (!ctx || !ctx->buffer)
     return;
 
-  // Optimization: Trivial Rejection for full line?
+  // Optimization: Trivial Rejection against Clip Rect?
+  // Using Cohen-Sutherland ideas or just pixel check for now.
+  // Pixel check is safest for robust implementation in short time.
+
   // Bresenham
   int16_t dx = abs(x1 - x0);
   int16_t dy = abs(y1 - y0);
@@ -56,11 +82,47 @@ static void cell_draw_line(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
   }
 }
 
+static void cell_draw_rect(meas_render_ctx_t *ctx, meas_rect_t rect) {
+  int16_t x = rect.x;
+  int16_t y = rect.y;
+  int16_t w = rect.w;
+  int16_t h = rect.h;
+
+  cell_draw_line(ctx, x, y, x + w - 1, y);                 // Top
+  cell_draw_line(ctx, x, y + h - 1, x + w - 1, y + h - 1); // Bottom
+  cell_draw_line(ctx, x, y, x, y + h - 1);                 // Left
+  cell_draw_line(ctx, x + w - 1, y, x + w - 1, y + h - 1); // Right
+}
+
 static void cell_fill_rect(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                            int16_t w, int16_t h) {
   if (!ctx || !ctx->buffer)
     return;
 
+  // Clip to global clip_rect first
+  int16_t cx = ctx->clip_rect.x;
+  int16_t cy = ctx->clip_rect.y;
+  int16_t cw = ctx->clip_rect.w;
+  int16_t ch = ctx->clip_rect.h;
+
+  // Intersect (x,y,w,h) with (cx,cy,cw,ch)
+  if (x < cx) {
+    w -= (cx - x);
+    x = cx;
+  }
+  if (y < cy) {
+    h -= (cy - y);
+    y = cy;
+  }
+  if (x + w > cx + cw)
+    w = cx + cw - x;
+  if (y + h > cy + ch)
+    h = cy + ch - y;
+
+  if (w <= 0 || h <= 0)
+    return;
+
+  // Now clip to TILE bounds
   int16_t lx = x - ctx->x_offset;
   int16_t ly = y - ctx->y_offset;
 
@@ -94,33 +156,121 @@ static void cell_fill_rect(meas_render_ctx_t *ctx, int16_t x, int16_t y,
   }
 }
 
+// Circle Helper
+static void draw_circle_points(meas_render_ctx_t *ctx, int16_t xc, int16_t yc,
+                               int16_t x, int16_t y) {
+  cell_draw_pixel(ctx, xc + x, yc + y);
+  cell_draw_pixel(ctx, xc - x, yc + y);
+  cell_draw_pixel(ctx, xc + x, yc - y);
+  cell_draw_pixel(ctx, xc - x, yc - y);
+  cell_draw_pixel(ctx, xc + y, yc + x);
+  cell_draw_pixel(ctx, xc - y, yc + x);
+  cell_draw_pixel(ctx, xc + y, yc - x);
+  cell_draw_pixel(ctx, xc - y, yc - x);
+}
+
+static void cell_draw_circle(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                             int16_t r) {
+  int16_t x = 0, y = r;
+  int16_t d = 3 - 2 * r;
+  draw_circle_points(ctx, x0, y0, x, y);
+  while (y >= x) {
+    x++;
+    if (d > 0) {
+      y--;
+      d = d + 4 * (x - y) + 10;
+    } else {
+      d = d + 4 * x + 6;
+    }
+    draw_circle_points(ctx, x0, y0, x, y);
+  }
+}
+
+static void fill_scanline(meas_render_ctx_t *ctx, int16_t x1, int16_t x2,
+                          int16_t y) {
+  // x1 must be <= x2 ? Sort.
+  if (x1 > x2) {
+    int16_t t = x1;
+    x1 = x2;
+    x2 = t;
+  }
+  // Fill Rect (x1, y, x2-x1+1, 1)
+  cell_fill_rect(ctx, x1, y, x2 - x1 + 1, 1);
+}
+
+static void cell_fill_circle(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                             int16_t r) {
+  int16_t x = 0, y = r;
+  int16_t d = 3 - 2 * r;
+
+  while (y >= x) {
+    // 4 Horizontal lines for each step
+    fill_scanline(ctx, x0 - x, x0 + x, y0 + y);
+    fill_scanline(ctx, x0 - x, x0 + x, y0 - y);
+    fill_scanline(ctx, x0 - y, x0 + y, y0 + x);
+    fill_scanline(ctx, x0 - y, x0 + y, y0 - x);
+
+    x++;
+    if (d > 0) {
+      y--;
+      d = d + 4 * (x - y) + 10;
+    } else {
+      d = d + 4 * x + 6;
+    }
+  }
+}
+
 static void cell_blit(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
                       int16_t h, const void *img) {
   if (!ctx || !ctx->buffer || !img)
     return;
 
+  // Clip to Global Rect
+  int16_t cx = ctx->clip_rect.x;
+  int16_t cy = ctx->clip_rect.y;
+  int16_t cw = ctx->clip_rect.w;
+  int16_t ch = ctx->clip_rect.h;
+
+  int16_t src_stride = w;
+  const meas_pixel_t *src = (const meas_pixel_t *)img;
+  int16_t src_skip_x = 0;
+  int16_t src_skip_y = 0;
+
+  // Intersect global clip
+  if (x < cx) {
+    int16_t diff = cx - x;
+    src_skip_x += diff;
+    w -= diff;
+    x = cx;
+  }
+  if (y < cy) {
+    int16_t diff = cy - y;
+    src_skip_y += diff;
+    h -= diff;
+    y = cy;
+  }
+  if (x + w > cx + cw)
+    w = cx + cw - x;
+  if (y + h > cy + ch)
+    h = cy + ch - y;
+
+  if (w <= 0 || h <= 0)
+    return;
+
+  // Now clip to TILE
   int16_t lx = x - ctx->x_offset;
   int16_t ly = y - ctx->y_offset;
-  const meas_pixel_t *src = (const meas_pixel_t *)img;
 
   if (lx >= ctx->width || ly >= ctx->height || (lx + w) <= 0 || (ly + h) <= 0)
     return;
 
-  // X-Clip Source skipping logic needed for correctness if we have sprite
-  // source
-  int16_t src_skip_x = 0;
-
   if (lx < 0) {
-    src_skip_x = -lx;
+    src_skip_x += -lx;
     w += lx;
     lx = 0;
   }
   if (ly < 0) {
-    // Vertical clip: Skip rows in source
-    // Assuming source is exactly 'original w' wide.
-    // If we assume the passed 'w' is the width of the image, then we skip w *
-    // -ly Use the original (unclipped) w for stride
-    src += (-ly) * w;
+    src_skip_y += -ly;
     h += ly;
     ly = 0;
   }
@@ -132,26 +282,15 @@ static void cell_blit(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
   if (w <= 0 || h <= 0)
     return;
 
-  // Stride of Source is strictly assumed to be the original width 'w' passed to
-  // the function? The API `blit(ctx, x, y, w, h, img)` usually means: draw IMG
-  // of size WxH at X,Y. So Source Stride = (Argument W). If we clipped X, we
-  // must skip `src_skip_x` pixels at start of row, AND skip `(Original W -
-  // Clipped W)` at end of row. Let Original W = O_W.  Argument W = O_W. Clipped
-  // W = C_W.
-
-  // Re-read argument `w`: "int16_t w, int16_t h".
-  // Argument w is the Width of the Image AND the Width of the Rect to Draw.
-  int16_t src_stride = w; // The W passed by caller is the Image Width.
-
-  // Adjust src pointer for X-clip
-  src += src_skip_x;
+  // Adjust Src Pointer based on total skips
+  src += (src_skip_y * src_stride) + src_skip_x;
 
   meas_pixel_t *dst = &ctx->buffer[ly * ctx->width + lx];
 
   for (int16_t i = 0; i < h; i++) {
-    memcpy(dst, src, w * sizeof(meas_pixel_t)); // w is the CLIPPED width
+    memcpy(dst, src, w * sizeof(meas_pixel_t));
     dst += ctx->width;
-    src += src_stride; // Jump by ORIGINAL width
+    src += src_stride;
   }
 }
 
@@ -184,10 +323,33 @@ static void cell_fill_gradient_v(meas_render_ctx_t *ctx, int16_t x, int16_t y,
   if (!ctx || !ctx->buffer)
     return;
 
+  int16_t full_h = h; // Needed for interpolation
+  int16_t orig_y = y; // Needed for relative calculation
+
+  // Strict Clipping (Global)
+  int16_t cx = ctx->clip_rect.x;
+  int16_t cy = ctx->clip_rect.y;
+  int16_t cw = ctx->clip_rect.w;
+  int16_t ch = ctx->clip_rect.h;
+
+  if (x < cx) {
+    w -= (cx - x);
+    x = cx;
+  }
+  if (y < cy) {
+    h -= (cy - y);
+    y = cy;
+  }
+  if (x + w > cx + cw)
+    w = cx + cw - x;
+  if (y + h > cy + ch)
+    h = cy + ch - y;
+
+  if (w <= 0 || h <= 0)
+    return;
+
   int16_t lx = x - ctx->x_offset;
   int16_t ly = y - ctx->y_offset;
-
-  int16_t full_h = h; // Needed for interpolation
 
   if (lx >= ctx->width || ly >= ctx->height || (lx + w) <= 0 || (ly + h) <= 0)
     return;
@@ -214,7 +376,7 @@ static void cell_fill_gradient_v(meas_render_ctx_t *ctx, int16_t x, int16_t y,
     // Current Global Y of this row
     int16_t current_global_y = ctx->y_offset + ly + i;
     // Position within the original rect
-    int16_t relative_y = current_global_y - y;
+    int16_t relative_y = current_global_y - orig_y;
 
     // Ratio 0..255
     uint8_t ratio = (relative_y * 255) / (full_h - 1 > 0 ? full_h - 1 : 1);
@@ -234,19 +396,38 @@ static void cell_fill_gradient_h(meas_render_ctx_t *ctx, int16_t x, int16_t y,
   if (!ctx || !ctx->buffer)
     return;
 
+  int16_t full_w = w;
+  int16_t orig_x = x;
+
+  // Strict Clipping (Global)
+  int16_t cx = ctx->clip_rect.x;
+  int16_t cy = ctx->clip_rect.y;
+  int16_t cw = ctx->clip_rect.w;
+  int16_t ch = ctx->clip_rect.h;
+
+  if (x < cx) {
+    w -= (cx - x);
+    x = cx;
+  }
+  if (y < cy) {
+    h -= (cy - y);
+    y = cy;
+  }
+  if (x + w > cx + cw)
+    w = cx + cw - x;
+  if (y + h > cy + ch)
+    h = cy + ch - y;
+
+  if (w <= 0 || h <= 0)
+    return;
+
   int16_t lx = x - ctx->x_offset;
   int16_t ly = y - ctx->y_offset;
-
-  int16_t full_w = w;
 
   if (lx >= ctx->width || ly >= ctx->height || (lx + w) <= 0 || (ly + h) <= 0)
     return;
 
-  // Offset into Gradient Logic if Clipped Left
-  int16_t grad_x_skip = 0;
-
   if (lx < 0) {
-    grad_x_skip = -lx;
     w += lx;
     lx = 0;
   }
@@ -262,15 +443,15 @@ static void cell_fill_gradient_h(meas_render_ctx_t *ctx, int16_t x, int16_t y,
   if (w <= 0 || h <= 0)
     return;
 
-  // Pre-calculate X line? No, just loop.
-  // Optimization: Pre-calculate the row buffer since it's same for all rows?
-
   meas_pixel_t *row_start = &ctx->buffer[ly * ctx->width + lx];
 
   for (int16_t i = 0; i < h; i++) {
     meas_pixel_t *p = row_start;
     for (int16_t j = 0; j < w; j++) {
-      int16_t relative_x = grad_x_skip + j;
+      // Calculate global X
+      int16_t global_x = ctx->x_offset + lx + j;
+      int16_t relative_x = global_x - orig_x;
+
       uint8_t ratio = (relative_x * 255) / (full_w - 1 > 0 ? full_w - 1 : 1);
       *p++ = lerp_color(c1, c2, ratio);
     }
@@ -283,7 +464,6 @@ static void cell_get_dims(meas_render_ctx_t *ctx, int16_t *w, int16_t *h) {
     *w = ctx->width;
   if (h)
     *h = ctx->height;
-}
 }
 
 // --- Poly Primitives ---
@@ -310,9 +490,14 @@ static void cell_fill_polygon(meas_render_ctx_t *ctx,
   if (!ctx || !ctx->buffer || !points || count < 3)
     return;
 
-  // Global Y range for this Tile
+  // Global Y range for this Tile AND Clip Rect
   int16_t global_y_start = ctx->y_offset;
   int16_t global_y_end = ctx->y_offset + ctx->height;
+
+  if (global_y_start < ctx->clip_rect.y)
+    global_y_start = ctx->clip_rect.y;
+  if (global_y_end > ctx->clip_rect.y + ctx->clip_rect.h)
+    global_y_end = ctx->clip_rect.y + ctx->clip_rect.h;
 
   // Limits for polygon (Bounding Box check could optimize)
   int16_t poly_min_y = points[0].y;
@@ -364,12 +549,15 @@ static void cell_fill_polygon(meas_render_ctx_t *ctx,
     // Sort Nodes
     qsort(nodes, node_cnt, sizeof(int16_t), compare_nodes);
 
-    // Fill Pairs
-    // We are drawing into a TILE. So we must map Global Y -> Tile Relative Y
+    // Fill Pairs with Clipping
     int16_t tile_y = y - ctx->y_offset;
     meas_pixel_t *row = &ctx->buffer[tile_y * ctx->width];
     meas_pixel_t color = ctx->fg_color;
     int16_t width = ctx->width;
+
+    // Global Clip Range for X
+    int16_t clip_x_min = ctx->clip_rect.x;
+    int16_t clip_x_max = ctx->clip_rect.x + ctx->clip_rect.w; // Exclusive
 
     for (int k = 0; k < node_cnt; k += 2) {
       if (k + 1 >= node_cnt)
@@ -377,28 +565,33 @@ static void cell_fill_polygon(meas_render_ctx_t *ctx,
       int16_t x_start = nodes[k];
       int16_t x_end = nodes[k + 1];
 
-      if (x_start >= width)
-        continue;
-      if (x_end <= 0)
+      // Clip to logical clip rect
+      if (x_start < clip_x_min)
+        x_start = clip_x_min;
+      if (x_end > clip_x_max)
+        x_end = clip_x_max;
+      if (x_start >= x_end)
         continue;
 
-      if (x_start < 0)
-        x_start = 0;
-      if (x_end > width)
-        x_end = width;
+      // Clip to Tile relative X
+      int16_t lx_start = x_start - ctx->x_offset;
+      int16_t lx_end = x_end - ctx->x_offset;
 
-      for (int16_t x = x_start; x < x_end; x++) {
+      if (lx_start >= width)
+        continue;
+      if (lx_end <= 0)
+        continue;
+
+      if (lx_start < 0)
+        lx_start = 0;
+      if (lx_end > width)
+        lx_end = width;
+
+      for (int16_t x = lx_start; x < lx_end; x++) {
         row[x] = color;
       }
     }
   }
-}
-
-static void cell_get_dims(meas_render_ctx_t *ctx, int16_t *w, int16_t *h) {
-  if (w)
-    *w = ctx->width;
-  if (h)
-    *h = ctx->height;
 }
 
 // --- API Definition ---
@@ -413,4 +606,8 @@ const meas_render_api_t meas_render_cell_api = {
     .draw_text = NULL, // TODO: Font System
     .fill_gradient_v = cell_fill_gradient_v,
     .fill_gradient_h = cell_fill_gradient_h,
-    .get_dims = cell_get_dims};
+    .get_dims = cell_get_dims,
+    .set_clip_rect = cell_set_clip_rect,
+    .draw_rect = cell_draw_rect,
+    .draw_circle = cell_draw_circle,
+    .fill_circle = cell_fill_circle};

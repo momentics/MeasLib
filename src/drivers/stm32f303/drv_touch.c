@@ -345,17 +345,17 @@ static uint16_t touch_read_y(void) {
 
 // --- HAL Interface ---
 
-static meas_status_t hal_touch_read_point(void *ctx, int16_t *x, int16_t *y) {
+static meas_status_t hal_touch_read_point(void *ctx, meas_point_t *pt) {
   meas_drv_touch_t *touch = (meas_drv_touch_t *)ctx;
-  if (!touch || !touch->is_initialized)
+  if (!touch || !touch->is_initialized || !pt)
     return MEAS_ERROR;
 
   // Simple polling read
   // 1. Check if pressed (Optional, but good for filtering noise)
   // For raw read, just read.
 
-  *x = touch_read_x();
-  *y = touch_read_y();
+  pt->x = (int16_t)touch_read_x();
+  pt->y = (int16_t)touch_read_y();
 
   // Restore idle state
   touch_prepare_sense();
