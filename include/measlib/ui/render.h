@@ -13,6 +13,7 @@
 #define MEASLIB_UI_RENDER_H
 
 #include "measlib/types.h"
+#include "measlib/ui/fonts.h"
 #include <stdint.h>
 
 /**
@@ -21,14 +22,15 @@
  * Important for Tile Rendering strategies.
  */
 typedef struct {
-  meas_pixel_t *buffer;  /**< Pointer to framebuffer or tile buffer */
-  int16_t width;         /**< Width of the drawing area */
-  int16_t height;        /**< Height of the drawing area */
-  int16_t x_offset;      /**< Global X offset (if drawing to a tile) */
-  int16_t y_offset;      /**< Global Y offset (if drawing to a tile) */
-  meas_pixel_t fg_color; /**< Current Foreground Color */
-  meas_pixel_t bg_color; /**< Current Background Color */
-  meas_rect_t clip_rect; /**< Drawing Clip Region */
+  meas_pixel_t *buffer;    /**< Pointer to framebuffer or tile buffer */
+  int16_t width;           /**< Width of the drawing area */
+  int16_t height;          /**< Height of the drawing area */
+  int16_t x_offset;        /**< Global X offset (if drawing to a tile) */
+  int16_t y_offset;        /**< Global Y offset (if drawing to a tile) */
+  meas_pixel_t fg_color;   /**< Current Foreground Color */
+  meas_pixel_t bg_color;   /**< Current Background Color */
+  meas_rect_t clip_rect;   /**< Drawing Clip Region */
+  const meas_font_t *font; /**< Active Font */
 } meas_render_ctx_t;
 
 /**
@@ -44,8 +46,36 @@ typedef enum {
 } meas_alpha_t;
 
 /**
- * @brief Drawing API (VTable)
+ * @brief Text Alignment Flags.
+ * Combine Horizontal and Vertical flags using OR.
+ * Defaults: LEFT | TOP.
  */
+typedef enum {
+  MEAS_ALIGN_LEFT = 0x00,   /**< Align text to the Left (Default) */
+  MEAS_ALIGN_CENTER = 0x01, /**< Center text horizontally */
+  MEAS_ALIGN_RIGHT = 0x02,  /**< Align text to the Right */
+
+  MEAS_ALIGN_TOP = 0x00,     /**< Align text to the Top (Default) */
+  MEAS_ALIGN_VCENTER = 0x04, /**< Center text vertically */
+  MEAS_ALIGN_BOTTOM = 0x08   /**< Align text to the Bottom */
+} meas_align_t;
+
+/**
+ * @brief Line Patterns.
+ * 8-bit pattern repeated along the line.
+ * 1 = Pixel Drawn, 0 = Pixel Skipped (Transparent).
+ */
+typedef enum {
+  MEAS_PATTERN_SOLID = 0xFF, /**< Solid Line (11111111) */
+  MEAS_PATTERN_DOT = 0xAA,   /**< Dotted Line (10101010) */
+  MEAS_PATTERN_DASH = 0xCC,  /**< Dashed Line (11001100) */
+  MEAS_PATTERN_DASH_DOT =
+      0xF8 /**< Dash-Dot (11111000... repeats 8px?) No, Fixed pattern 8 bits */
+} meas_line_pattern_t;
+
+// NOTE: Standard dash-dot usually requires more than 8 bits for good look, but
+// we stick to 8-bit cycle for efficiency. Better Dash-Dot: 11100100 -> E4
+
 typedef struct {
   void (*draw_pixel)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                      uint8_t alpha);
@@ -80,6 +110,21 @@ typedef struct {
                           uint8_t alpha);
   void (*fill_round_rect)(meas_render_ctx_t *ctx, meas_rect_t rect, int16_t r,
                           uint8_t alpha);
+
+  // Font API
+  void (*set_font)(meas_render_ctx_t *ctx, const meas_font_t *font);
+  int16_t (*get_text_width)(meas_render_ctx_t *ctx, const char *text);
+  int16_t (*get_text_height)(meas_render_ctx_t *ctx, const char *text);
+
+  // Extended API
+  void (*draw_text_aligned)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                            const char *text, uint8_t align, uint8_t alpha);
+  void (*invert_rect)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
+                      int16_t h);
+  meas_rect_t (*get_clip_rect)(meas_render_ctx_t *ctx);
+  void (*draw_line_patt)(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                         int16_t x1, int16_t y1, uint8_t pattern,
+                         uint8_t alpha);
 } meas_render_api_t;
 
 #endif // MEASLIB_UI_RENDER_H

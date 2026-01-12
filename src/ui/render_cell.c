@@ -749,11 +749,6 @@ static void cell_fill_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
   cell_fill_rect(ctx, x, y + r, w, h - 2 * r, alpha);
 
   // 2. Fill Top/Bottom Strips + Corners using Bresenham
-  int16_t f = 1 - r;
-  int16_t ddF_x = 1;
-  int16_t ddF_y = -2 * r;
-  int16_t cx = 0;
-  int16_t cy = r;
 
   // Centers
   int16_t xtl = x + r;
@@ -819,7 +814,222 @@ static void cell_fill_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
   }
 }
 
+// --- Text Primitives ---
+
+void cell_set_font(meas_render_ctx_t *ctx, const meas_font_t *font) {
+  if (ctx) {
+    ctx->font = font;
+  }
+}
+
+int16_t cell_get_text_width(meas_render_ctx_t *ctx, const char *text) {
+  if (!ctx || !ctx->font || !text)
+    return 0;
+
+  int16_t width = 0;
+  const meas_font_t *f = ctx->font;
+
+  while (*text) {
+    uint8_t w, h;
+    f->get_glyph(f->bitmap, *text, &w, &h);
+    width += w;
+    text++;
+  }
+  return width;
+}
+
+int16_t cell_get_text_height(meas_render_ctx_t *ctx, const char *text) {
+  (void)text;
+  if (!ctx || !ctx->font)
+    return 0;
+  return ctx->font->height;
+}
+
+void cell_draw_text(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                    const char *text, uint8_t alpha) {
+  if (!ctx || !ctx->font || !text)
+    return;
+
+  const meas_font_t *f = ctx->font;
+  int16_t cur_x = x;
+  int16_t cur_y = y;
+
+  while (*text) {
+    char c = *text;
+    uint8_t gw, gh;
+    const uint8_t *glyph_data = f->get_glyph(f->bitmap, c, &gw, &gh);
+
+    if (glyph_data) {
+      if (f->height > 8) {
+        // Large Font (Native 16-bit)
+        // Ensure aligned access if possible, or use memcpy safe read if
+        // architecture strict Since we controls fonts, we assume 16-bit
+        // alignment.
+        const uint16_t *u16_data = (const uint16_t *)glyph_data;
+        for (int r = 0; r < gh; r++) {
+          uint16_t row_bits = u16_data[r];
+          // Row width is typically 11-16 pixels.
+          for (int cx = 0; cx < 16; cx++) {
+            if (row_bits & (0x8000 >> cx)) {
+              cell_draw_pixel(ctx, cur_x + cx, cur_y + r, alpha);
+            }
+          }
+        }
+      } else {
+        // Small Font (Column Major)
+        for (int col = 0; col < gw; col++) {
+          uint8_t stripe = glyph_data[col + 1]; // Skip header
+          for (int row = 0; row < 8; row++) {
+            if (stripe & (1 << row)) {
+              cell_draw_pixel(ctx, cur_x + col, cur_y + row, alpha);
+            }
+          }
+        }
+      }
+    }
+    cur_x += gw;
+    text++;
+  }
+}
+
 // --- API Definition ---
+
+// --- Extended Primitives ---
+
+static void cell_draw_text_aligned(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                                   const char *text, uint8_t align,
+                                   uint8_t alpha) {
+  if (!ctx || !ctx->font || !text)
+    return;
+
+  int16_t w = cell_get_text_width(ctx, text);
+  int16_t h = cell_get_text_height(ctx, text);
+
+  // Horizontal Alignment
+  if (align & MEAS_ALIGN_CENTER) {
+    x -= w / 2;
+  } else if (align & MEAS_ALIGN_RIGHT) {
+    x -= w;
+  }
+
+  // Vertical Alignment
+  if (align & MEAS_ALIGN_VCENTER) {
+    y -= h / 2;
+  } else if (align & MEAS_ALIGN_BOTTOM) {
+    y -= h;
+  }
+
+  cell_draw_text(ctx, x, y, text, alpha);
+}
+
+static meas_rect_t cell_get_clip_rect(meas_render_ctx_t *ctx) {
+  if (ctx) {
+    return ctx->clip_rect;
+  }
+  return (meas_rect_t){0, 0, 0, 0};
+}
+
+static void cell_invert_rect(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                             int16_t w, int16_t h) {
+  if (!ctx || !ctx->buffer)
+    return;
+
+  // Clip to global clip_rect first
+  int16_t cx = ctx->clip_rect.x;
+  int16_t cy = ctx->clip_rect.y;
+  int16_t cw = ctx->clip_rect.w;
+  int16_t ch = ctx->clip_rect.h;
+
+  // Intersect (x,y,w,h) with (cx,cy,cw,ch)
+  if (x < cx) {
+    w -= (cx - x);
+    x = cx;
+  }
+  if (y < cy) {
+    h -= (cy - y);
+    y = cy;
+  }
+  if (x + w > cx + cw)
+    w = cx + cw - x;
+  if (y + h > cy + ch)
+    h = cy + ch - y;
+
+  if (w <= 0 || h <= 0)
+    return;
+
+  // Now clip to TILE bounds
+  int16_t lx = x - ctx->x_offset;
+  int16_t ly = y - ctx->y_offset;
+
+  if (lx >= ctx->width || ly >= ctx->height || (lx + w) <= 0 || (ly + h) <= 0)
+    return;
+
+  if (lx < 0) {
+    w += lx;
+    lx = 0;
+  }
+  if (ly < 0) {
+    h += ly;
+    ly = 0;
+  }
+  if (lx + w > ctx->width)
+    w = ctx->width - lx;
+  if (ly + h > ctx->height)
+    h = ctx->height - ly;
+
+  if (w <= 0 || h <= 0)
+    return;
+
+  meas_pixel_t *row = &ctx->buffer[ly * ctx->width + lx];
+
+  for (int16_t i = 0; i < h; i++) {
+    for (int16_t j = 0; j < w; j++) {
+      row[j] = ~row[j];
+    }
+    row += ctx->width;
+  }
+}
+
+static void cell_draw_line_patt(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                                int16_t x1, int16_t y1, uint8_t pattern,
+                                uint8_t alpha) {
+  if (pattern == MEAS_PATTERN_SOLID) {
+    cell_draw_line(ctx, x0, y0, x1, y1, alpha);
+    return;
+  }
+
+  // Bresenham with Pattern
+  // Logic duplicated to avoid function call overhead in tight loop or
+  // complexity of generic callback
+  int16_t dx = abs(x1 - x0);
+  int16_t dy = abs(y1 - y0);
+  int16_t sx = (x0 < x1) ? 1 : -1;
+  int16_t sy = (y0 < y1) ? 1 : -1;
+  int16_t err = (dx > dy ? dx : -dy) / 2;
+  int16_t e2;
+
+  uint8_t bit_counter = 0;
+
+  while (1) {
+    // Check pattern: MSB first (0x80) rotated by bit_counter
+    if (pattern & (0x80 >> (bit_counter & 7))) {
+      cell_draw_pixel(ctx, x0, y0, alpha);
+    }
+    bit_counter++;
+
+    if (x0 == x1 && y0 == y1)
+      break;
+    e2 = err;
+    if (e2 > -dx) {
+      err -= dy;
+      x0 += sx;
+    }
+    if (e2 < dy) {
+      err += dx;
+      y0 += sy;
+    }
+  }
+}
 
 const meas_render_api_t meas_render_cell_api = {
     .draw_pixel = cell_draw_pixel,
@@ -829,7 +1039,7 @@ const meas_render_api_t meas_render_cell_api = {
     .fill_rect = cell_fill_rect,
     .fill_polygon = cell_fill_polygon,
     .blit = cell_blit,
-    .draw_text = NULL, // TODO: Font System
+    .draw_text = cell_draw_text,
     .fill_gradient_v = cell_fill_gradient_v,
     .fill_gradient_h = cell_fill_gradient_h,
     .get_dims = cell_get_dims,
@@ -838,4 +1048,11 @@ const meas_render_api_t meas_render_cell_api = {
     .draw_circle = cell_draw_circle,
     .fill_circle = cell_fill_circle,
     .draw_round_rect = cell_draw_round_rect,
-    .fill_round_rect = cell_fill_round_rect};
+    .fill_round_rect = cell_fill_round_rect,
+    .set_font = cell_set_font,
+    .get_text_width = cell_get_text_width,
+    .get_text_height = cell_get_text_height,
+    .draw_text_aligned = cell_draw_text_aligned,
+    .invert_rect = cell_invert_rect,
+    .get_clip_rect = cell_get_clip_rect,
+    .draw_line_patt = cell_draw_line_patt};

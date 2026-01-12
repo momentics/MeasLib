@@ -390,11 +390,24 @@ typedef struct {
     void (*draw_pixel)(meas_render_ctx_t* ctx, int16_t x, int16_t y);
     void (*draw_line)(meas_render_ctx_t* ctx, int16_t x0, int16_t y0, int16_t x1, int16_t y1);
     void (*fill_rect)(meas_render_ctx_t* ctx, int16_t x, int16_t y, int16_t w, int16_t h);
-    void (*blit)(meas_render_ctx_t* ctx, int16_t x, int16_t y, int16_t w, int16_t h, const void* img);
-    void (*draw_text)(meas_render_ctx_t* ctx, int16_t x, int16_t y, const char* text);
+    void (*blit)(meas_render_ctx_t* ctx, int16_t x, int16_t y, int16_t w, int16_t h, const void* img, uint8_t alpha);
+    
+    // Font System
+    void (*set_font)(meas_render_ctx_t* ctx, const meas_font_t* font);
+    int16_t (*get_text_width)(meas_render_ctx_t* ctx, const char* text);
+    int16_t (*get_text_height)(meas_render_ctx_t* ctx, const char* text);
+    void (*draw_text)(meas_render_ctx_t* ctx, int16_t x, int16_t y, const char* text, uint8_t alpha);
+
     void (*get_dims)(meas_render_ctx_t* ctx, int16_t* w, int16_t* h);
 } meas_render_api_t;
 ```
+
+### 6.2 Font System
+
+Fonts are defined as `meas_font_t` structures (in `measlib/ui/fonts.h`).
+* **5x7**: Standard system font.
+* **11x14**: Large readable font.
+* Fonts are distinct zero-copy resources commonly stored in Flash.
 
 ### 6.2 UI Controller (`meas_ui_t`)
 
