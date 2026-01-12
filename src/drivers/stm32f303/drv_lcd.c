@@ -337,16 +337,18 @@ void meas_drv_lcd_fill_rect(void *ctx, uint16_t x, uint16_t y, uint16_t w,
   uint32_t total_pixels = (uint32_t)w * h;
   if (total_pixels == 0)
     return;
-  LCD_CS_LOW();
 
-  // 2. Set Window
+  // 1. Set Window (Internally handles CS and 8-bit config)
   meas_drv_lcd_set_window(ctx, x, y, w, h);
 
-  // 3. Switch to 16-bit SPI for pixel data
+  // 2. Prepare for Data Write
+  LCD_CS_LOW();
+  lcd_write_cmd(CMD_RAMWR);
+  LCD_CD_DATA(); // Data Mode
+
+  // 3. Switch to 16-bit SPI for pixel data (Wait for Command to flush first)
   spi_wait_busy();
   lcd_spi_config_16bit();
-  // Note: CS stays LOW during reconfig if we are careful, or we toggle it?
-  // Safe to keeping low as long as CLK doesn't toggle.
 
   // 4. Setup DMA for FILL
   // Mem2Periph, 16-bit (MSIZE=01, PSIZE=01), MINC=0 (Fixed Color), Priority
