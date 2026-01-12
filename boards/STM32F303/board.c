@@ -7,6 +7,7 @@
  *
  */
 
+#include "drv_sd.h"
 #include "gpio_defaults.h"
 #include "measlib/drivers/api.h"
 #include "measlib/drivers/hal.h"
@@ -311,6 +312,7 @@ void sys_init(void) {
   meas_drv_wdg_init();
   meas_drv_flash_init();
   meas_drv_usb_init();
+  meas_drv_sd_init();
 
   // 2. Event Loop Init
   // meas_event_loop_init();

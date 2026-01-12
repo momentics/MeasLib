@@ -136,6 +136,7 @@ else()
         src/drivers/stm32f303/drv_lcd.c
         src/drivers/stm32f303/drv_touch.c
         src/drivers/stm32f303/drv_i2c.c
+        src/drivers/stm32f303/drv_sd.c
         src/drivers/stm32f303/drv_watchdog.c
         src/drivers/stm32f303/drv_flash.c
         src/drivers/stm32f303/drv_usb_vcp.c
