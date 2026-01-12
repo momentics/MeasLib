@@ -125,6 +125,40 @@ void test_math_perf(void) {
   time_s = (double)(end - start) / CLOCKS_PER_SEC;
   printf("[PERF] Atan2:  %d ops in %.4f s (%.1f Mops/s)\n", iterations, time_s,
          (iterations / time_s) / 1e6);
+
+  // Log
+  start = clock();
+  for (int i = 0; i < iterations; i++) {
+    res = meas_math_log(arg);
+    arg += 0.0001f;
+  }
+  end = clock();
+  time_s = (double)(end - start) / CLOCKS_PER_SEC;
+  printf("[PERF] Log:    %d ops in %.4f s (%.1f Mops/s)\n", iterations, time_s,
+         (iterations / time_s) / 1e6);
+
+  // Cbrt
+  start = clock();
+  for (int i = 0; i < iterations; i++) {
+    res = meas_math_cbrt(arg);
+    arg += 0.0001f;
+  }
+  end = clock();
+  time_s = (double)(end - start) / CLOCKS_PER_SEC;
+  printf("[PERF] Cbrt:   %d ops in %.4f s (%.1f Mops/s)\n", iterations, time_s,
+         (iterations / time_s) / 1e6);
+
+  // Modf
+  meas_real_t iptr;
+  start = clock();
+  for (int i = 0; i < iterations; i++) {
+    res = meas_math_modf(arg, &iptr);
+    arg += 0.0001f;
+  }
+  end = clock();
+  time_s = (double)(end - start) / CLOCKS_PER_SEC;
+  printf("[PERF] Modf:   %d ops in %.4f s (%.1f Mops/s)\n", iterations, time_s,
+         (iterations / time_s) / 1e6);
 }
 
 void run_math_tests(void) {

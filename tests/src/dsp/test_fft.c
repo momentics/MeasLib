@@ -21,9 +21,6 @@ static meas_dsp_fft_t fft_ctx;
 
 void test_fft_impulse(void) {
   // 1. Setup Impulse (Delta function) at t=0
-  // FFT of delta should be constant magnitude across all bins (DC).
-  // Actually, FFT of [1, 0, 0...] is [1, 1, 1...].
-
   memset(fft_buf, 0, sizeof(fft_buf));
   fft_buf[0].re = 1.0f;
   fft_buf[0].im = 0.0f;
@@ -33,16 +30,21 @@ void test_fft_impulse(void) {
   meas_dsp_fft_exec(&fft_ctx, fft_buf, fft_buf);
 
   // 3. Verify
-  // All bins should have Re=1.0, Im=0.0
+  float max_err = 0.0f;
   for (int i = 0; i < FFT_TEST_LEN; i++) {
-    TEST_ASSERT_FLOAT_WITHIN(1e-3, 1.0f, fft_buf[i].re);
-    TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, fft_buf[i].im);
+    float err_re = fabs(fft_buf[i].re - 1.0f);
+    float err_im = fabs(fft_buf[i].im - 0.0f);
+    if (err_re > max_err)
+      max_err = err_re;
+    if (err_im > max_err)
+      max_err = err_im;
   }
+  printf("[FFT] Impulse: Max Err=%.6f\n", max_err);
+  TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, max_err);
 }
 
 void test_fft_dcV(void) {
   // 1. Constant DC signal [1, 1, 1...]
-  // FFT shoud be [N, 0, 0...] (Impulse at f=0)
   for (int i = 0; i < FFT_TEST_LEN; i++) {
     fft_buf[i].re = 1.0f;
     fft_buf[i].im = 0.0f;
@@ -53,15 +55,20 @@ void test_fft_dcV(void) {
   meas_dsp_fft_exec(&fft_ctx, fft_buf, fft_buf);
 
   // 3. Verify
-  // DC bin (0) should be N (1024)
-  TEST_ASSERT_FLOAT_WITHIN(1e-3, (float)FFT_TEST_LEN, fft_buf[0].re);
-  TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, fft_buf[0].im);
+  float max_err_dc = fabs(fft_buf[0].re - (float)FFT_TEST_LEN);
+  float max_err_other = 0.0f;
 
-  // Other bins should be 0
   for (int i = 1; i < FFT_TEST_LEN; i++) {
-    TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, fft_buf[i].re);
-    TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, fft_buf[i].im);
+    float mag =
+        sqrtf(fft_buf[i].re * fft_buf[i].re + fft_buf[i].im * fft_buf[i].im);
+    if (mag > max_err_other)
+      max_err_other = mag;
   }
+  printf("[FFT] DC: DC Err=%.6f, Max Leakage=%.6f\n", max_err_dc,
+         max_err_other);
+
+  TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, max_err_dc);
+  TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, max_err_other);
 }
 
 void test_fft_sine(void) {
@@ -79,32 +86,42 @@ void test_fft_sine(void) {
   meas_dsp_fft_init(&fft_ctx, FFT_TEST_LEN, false);
   meas_dsp_fft_exec(&fft_ctx, fft_buf, fft_buf);
 
-  // 3. Verify Peak at bin 8
+  // 3. Verify
   int peak_bin = 0;
   float peak_mag = 0.0f;
+  float max_side_lobe = 0.0f;
 
-  for (int i = 0; i < 32; i++) {
+  for (int i = 0; i < FFT_TEST_LEN; i++) { // Check full spectrum
     float m =
         sqrtf(fft_buf[i].re * fft_buf[i].re + fft_buf[i].im * fft_buf[i].im);
     if (m > peak_mag) {
       peak_mag = m;
       peak_bin = i;
+    } else {
+      // Check side lobes (excluding symmetric peak at N-k if real input,
+      // but here complex input with 0 im is effectively real, so spectrum has
+      // conjugate symmetry) For k=8, we expect peak at 8 and 1016 (N-8).
+      if (i != 8 && i != (FFT_TEST_LEN - 8)) {
+        if (m > max_side_lobe)
+          max_side_lobe = m;
+      }
     }
   }
 
-  // Verification:
-  // 1. Peak must be at Bin 8
-  TEST_ASSERT_EQUAL(8, peak_bin);
+  float peak_err = fabsf(peak_mag - 512.0f);
+  printf(
+      "[FFT] Sine: Peak Bin=%d, Peak Mag=%.2f (Err: %.2f), Max Leakage=%.6f\n",
+      peak_bin, peak_mag, peak_err, max_side_lobe);
 
-  // 2. Magnitude should be ~512 (N/2) for amplitude 1.0 cosine
-  // Allow small margin for floating point errors
-  TEST_ASSERT_FLOAT_WITHIN(1.0f, 512.0f, peak_mag);
+  TEST_ASSERT_EQUAL(8, peak_bin);
+  TEST_ASSERT_FLOAT_WITHIN(1.0f, 0.0f, peak_err);
+  TEST_ASSERT_FLOAT_WITHIN(1e-3, 0.0f, max_side_lobe);
 }
 
 #include <time.h>
 
 void test_fft_perf(void) {
-  const int iterations = 1000;
+  const int iterations = 20000;
   meas_dsp_fft_init(&fft_ctx, FFT_TEST_LEN, false);
 
   // Prepare buffer

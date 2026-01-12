@@ -29,18 +29,24 @@
 // }
 
 // Fast Cbrt (Float)
+// Accuracy: ~1e-6 (with improved seed)
 static float fast_cbrtf(float x) {
   if (x == 0)
-    return 0;
-  float b = 1.0f;
-  float last_b_1 = 0;
-  float last_b_2 = 0;
-  while (last_b_1 != b && last_b_2 != b) {
-    last_b_1 = b;
-    b = (2 * b + x / b / b) / 3;
-    last_b_2 = b;
-    b = (2 * b + x / b / b) / 3;
-  }
+    return 0.0f;
+  union {
+    float f;
+    uint32_t i;
+  } u = {x};
+  // Explicit initial guess using bit hack
+  // (i/3 + B) where B ~ 709921077 (0x2a517d31)
+  u.i = u.i / 3 + 709921077;
+
+  float b = u.f;
+  // Two iterations of Halley's method or Newton
+  // Newton: x_new = (2*x + a/x^2) / 3
+  // Unrolled for performance
+  b = (2.0f * b + x / (b * b)) * 0.333333333f;
+  b = (2.0f * b + x / (b * b)) * 0.333333333f;
   return b;
 }
 
@@ -63,36 +69,37 @@ static float fast_logf(float x) {
 }
 
 // Fast Atan2 (Float)
-// NOTE: Maps to full circle.
+// Maximum error < 1e-5 rad
 static float fast_atan2f(float y, float x) {
-  union {
-    float f;
-    int32_t i;
-  } ux = {x};
-  union {
-    float f;
-    int32_t i;
-  } uy = {y};
-  if (ux.i == 0 && uy.i == 0)
+  if (x == 0.0f && y == 0.0f)
     return 0.0f;
 
-  float ax, ay, r, s;
-  ax = MEAS_MATH_ABS_IMPL(x);
-  ay = MEAS_MATH_ABS_IMPL(y);
-  r = (ay < ax) ? ay / ax : ax / ay;
-  s = r * r;
+  float ax = MEAS_MATH_ABS_IMPL(x);
+  float ay = MEAS_MATH_ABS_IMPL(y);
+  float a;
 
-  // Polynomial approximation (~0.005 deg error)
-  r *= 0.999133448222780f -
-       s * (0.320533292381664f -
-            s * (0.144982490144465f - s * 0.038254464970299f));
+  // Range reduction to [0, 1]
+  if (ax >= ay) {
+    a = ay / ax;
+  } else {
+    a = ax / ay;
+  }
+
+  float s = a * a;
+  // 9th order Minimax approximation for atan(x) on [0, 1]
+  // Coefficients chosen such that P(1.0) ~= PI/4 to ensure continuity
+  // atan(x) ~= x * (c0 + x^2 * (c1 + x^2 * (c2 + x^2 * (c3 + x^2 * c4))))
+  float r = a * (0.9998660f +
+                 s * (-0.3302995f +
+                      s * (0.1801410f + s * (-0.0851330f + s * 0.0208351f))));
 
   if (ay > ax)
-    r = (MEAS_PI / 2) - r; // PI/2 - r
-  if (ux.i < 0)
-    r = MEAS_PI - r; // PI - r
-  if (uy.i < 0)
+    r = (MEAS_PI / 2.0f) - r;
+  if (x < 0.0f)
+    r = MEAS_PI - r;
+  if (y < 0.0f)
     r = -r;
+
   return r;
 }
 

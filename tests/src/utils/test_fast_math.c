@@ -171,9 +171,37 @@ void test_fast_cbrt_accuracy(void) {
 // 6. Performance Benchmarks
 // ----------------------------------------------------------------------------
 
+void test_fast_modff_accuracy(void) {
+  float max_err_int = 0.0f;
+  float max_err_frac = 0.0f;
+
+  for (float x = -100.0f; x < 100.0f; x += 0.123f) {
+    float ref_i, dut_i;
+    float ref_f = modff(x, &ref_i);
+    float dut_f = fast_modff(x, &dut_i);
+
+    float err_i = fabsf(dut_i - ref_i);
+    float err_f = fabsf(dut_f - ref_f);
+
+    if (err_i > max_err_int)
+      max_err_int = err_i;
+    if (err_f > max_err_frac)
+      max_err_frac = err_f;
+  }
+  printf("[FAST] Modf: Max Err Int=%.0f, Frac=%.6f\n", max_err_int,
+         max_err_frac);
+  TEST_ASSERT_FLOAT_WITHIN(0.000001f, 0.0f, max_err_int);
+  TEST_ASSERT_FLOAT_WITHIN(0.000001f, 0.0f, max_err_frac);
+}
+
+// ----------------------------------------------------------------------------
+// 6. Performance Benchmarks
+// ----------------------------------------------------------------------------
+
 void test_fast_math_perf(void) {
   const int iterations = 1000000;
   volatile float sink; // Prevent optimization
+  volatile float iptr;
   clock_t start, end;
 
   // 1. SINCOS
@@ -205,9 +233,29 @@ void test_fast_math_perf(void) {
   end = clock();
   double t_log = (double)(end - start) / CLOCKS_PER_SEC;
 
+  // 4. CBRT
+  start = clock();
+  for (int i = 0; i < iterations; i++) {
+    sink = fast_cbrtf((float)i);
+    (void)sink;
+  }
+  end = clock();
+  double t_cbrt = (double)(end - start) / CLOCKS_PER_SEC;
+
+  // 5. MODF
+  start = clock();
+  for (int i = 0; i < iterations; i++) {
+    sink = fast_modff((float)i * 1.5f, (float *)&iptr);
+    (void)sink;
+  }
+  end = clock();
+  double t_modf = (double)(end - start) / CLOCKS_PER_SEC;
+
   printf("[PERF] Fast Sincos: %.2f Mops/s\n", iterations / t_sincos / 1e6);
   printf("[PERF] Fast Atan2:  %.2f Mops/s\n", iterations / t_atan2 / 1e6);
   printf("[PERF] Fast Log:    %.2f Mops/s\n", iterations / t_log / 1e6);
+  printf("[PERF] Fast Cbrt:   %.2f Mops/s\n", iterations / t_cbrt / 1e6);
+  printf("[PERF] Fast Modf:   %.2f Mops/s\n", iterations / t_modf / 1e6);
 }
 
 void run_fast_math_tests(void) {
@@ -215,6 +263,7 @@ void run_fast_math_tests(void) {
   RUN_TEST(test_fast_atan2_accuracy);
   RUN_TEST(test_fast_sincos_accuracy);
   RUN_TEST(test_fast_log_accuracy);
+  RUN_TEST(test_fast_modff_accuracy);
   RUN_TEST(test_fast_cbrt_accuracy);
   RUN_TEST(test_fast_math_perf);
 }
