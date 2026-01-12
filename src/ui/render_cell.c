@@ -1497,6 +1497,69 @@ static void cell_draw_text_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
   }
 }
 
+static void cell_measure_text(meas_render_ctx_t *ctx, const char *text,
+                              meas_text_metrics_t *out_metrics) {
+  if (!ctx || !out_metrics)
+    return;
+  out_metrics->width = cell_get_text_width(ctx, text);
+  out_metrics->height = cell_get_text_height(ctx, text);
+  out_metrics->ascent = out_metrics->height;
+  out_metrics->descent = 0;
+}
+
+static void cell_draw_text_rotated(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                                   const char *text, int16_t angle,
+                                   uint8_t alpha) {
+  if (!ctx || !ctx->font || !text)
+    return;
+
+  meas_real_t rad = (meas_real_t)angle * (meas_real_t)MEAS_PI / 180.0f;
+  meas_real_t s, c;
+  meas_math_sincos(rad, &s, &c);
+
+  const meas_font_t *f = ctx->font;
+  meas_real_t cur_x = (meas_real_t)x;
+  meas_real_t cur_y = (meas_real_t)y;
+
+  while (*text) {
+    char ch = *text;
+    uint8_t gw, gh;
+    const uint8_t *glyph_data = f->get_glyph(f->bitmap, ch, &gw, &gh);
+
+    if (glyph_data) {
+      if (f->height > 8) {
+        const uint16_t *u16_data = (const uint16_t *)glyph_data;
+        for (int r = 0; r < gh; r++) {
+          uint16_t row_bits = u16_data[r];
+          for (int k = 0; k < 16; k++) {
+            if (row_bits & (0x8000 >> k)) {
+              meas_real_t rx = (meas_real_t)k * c - (meas_real_t)r * s;
+              meas_real_t ry = (meas_real_t)k * s + (meas_real_t)r * c;
+              cell_draw_pixel(ctx, (int16_t)(cur_x + rx), (int16_t)(cur_y + ry),
+                              alpha);
+            }
+          }
+        }
+      } else {
+        for (int col = 0; col < gw; col++) {
+          uint8_t stripe = glyph_data[col + 1];
+          for (int row = 0; row < 8; row++) {
+            if (stripe & (1 << row)) {
+              meas_real_t rx = (meas_real_t)col * c - (meas_real_t)row * s;
+              meas_real_t ry = (meas_real_t)col * s + (meas_real_t)row * c;
+              cell_draw_pixel(ctx, (int16_t)(cur_x + rx), (int16_t)(cur_y + ry),
+                              alpha);
+            }
+          }
+        }
+      }
+    }
+    cur_x += (meas_real_t)gw * c;
+    cur_y += (meas_real_t)gw * s;
+    text++;
+  }
+}
+
 const meas_render_api_t meas_render_cell_api = {
     .draw_pixel = cell_draw_pixel,
     .get_pixel = cell_get_pixel,
@@ -1528,4 +1591,7 @@ const meas_render_api_t meas_render_cell_api = {
     .fill_triangle = cell_fill_triangle,
     .draw_triangle = cell_draw_triangle,
     .draw_arc = cell_draw_arc,
-    .fill_pie = cell_fill_pie};
+    .fill_pie = cell_fill_pie,
+    // Extended Text
+    .measure_text = cell_measure_text,
+    .draw_text_rotated = cell_draw_text_rotated};

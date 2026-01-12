@@ -17,6 +17,16 @@
 #include <stdint.h>
 
 /**
+ * @brief Text Metrics
+ */
+typedef struct {
+  int16_t width;
+  int16_t height;
+  int16_t ascent;  /**< Units above baseline */
+  int16_t descent; /**< Units below baseline */
+} meas_text_metrics_t;
+
+/**
  * @brief Maximum depth of the Clipping Stack.
  */
 #define MEAS_MAX_CLIP_STACK 8
@@ -122,8 +132,12 @@ typedef struct {
   void (*set_font)(meas_render_ctx_t *ctx, const meas_font_t *font);
   int16_t (*get_text_width)(meas_render_ctx_t *ctx, const char *text);
   int16_t (*get_text_height)(meas_render_ctx_t *ctx, const char *text);
+  void (*measure_text)(meas_render_ctx_t *ctx, const char *text,
+                       meas_text_metrics_t *out_metrics);
 
   // Extended API
+  void (*draw_text_rotated)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                            const char *text, int16_t angle, uint8_t alpha);
   void (*draw_text_aligned)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                             const char *text, uint8_t align, uint8_t alpha);
   void (*draw_text_rect)(meas_render_ctx_t *ctx, meas_rect_t rect,
