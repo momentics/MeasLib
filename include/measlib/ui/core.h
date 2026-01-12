@@ -37,7 +37,38 @@ typedef struct {
   meas_ui_zone_t
       hit_zones[16]; /**< Registered interactive zones for current frame */
   uint8_t zone_count;
+
+  // Rendering
+  uint32_t dirty_map; /**< Dirty Tile Bitmask (30 tiles max) */
 } meas_ui_t;
+
+void meas_ui_invalidate_rect(meas_ui_t *ui, int16_t x, int16_t y, int16_t w,
+                             int16_t h);
+void meas_ui_force_redraw(meas_ui_t *ui);
+
+/**
+ * @brief Rendering Pipeline Stages
+ * Defines the strict z-order of drawing operations.
+ */
+typedef enum {
+  RENDER_STAGE_BG,      // Clear / Gradient
+  RENDER_STAGE_GRID,    // Grids / Smith Charts
+  RENDER_STAGE_TRACE,   // Measurement Points
+  RENDER_STAGE_MARKER,  // Markers / Deltas
+  RENDER_STAGE_OVERLAY, // Menus / Status Bar
+  RENDER_STAGE_COUNT
+} meas_render_stage_t;
+
+/**
+ * @brief Pipeline Step
+ * A single operation in the drawing sequence.
+ */
+typedef struct {
+  meas_render_stage_t stage;
+  bool (*condition)(const meas_ui_t *ui);
+  void (*execute)(const meas_ui_t *ui, meas_render_ctx_t *ctx,
+                  const meas_render_api_t *api);
+} meas_render_step_t;
 
 /**
  * @brief UI API
@@ -46,7 +77,8 @@ typedef struct {
   meas_object_api_t base;
 
   meas_status_t (*update)(meas_ui_t *ui);
-  meas_status_t (*draw)(meas_ui_t *ui, const meas_render_api_t *draw_api);
+  meas_status_t (*draw)(meas_ui_t *ui, meas_render_ctx_t *ctx,
+                        const meas_render_api_t *draw_api);
   meas_status_t (*handle_input)(meas_ui_t *ui, meas_variant_t input_event);
 
 } meas_ui_api_t;
