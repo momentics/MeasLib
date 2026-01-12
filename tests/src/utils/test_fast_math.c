@@ -39,6 +39,7 @@
 #define meas_math_ema impl_meas_math_ema
 #define meas_cabs impl_meas_cabs
 #define meas_carg impl_meas_carg
+#define meas_math_spline_catmull_rom impl_meas_math_spline_catmull_rom
 
 // ----------------------------------------------------------------------------
 // 2. Configuration: Enable Embedded Logic
@@ -167,6 +168,54 @@ void test_fast_cbrt_accuracy(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, max_err);
 }
 
+#define TEST_ASSERT_INT_WITHIN(delta, expected, actual)                        \
+  do {                                                                         \
+    int diff = (int)(expected) - (int)(actual);                                \
+    if (diff < 0)                                                              \
+      diff = -diff;                                                            \
+    if (diff > (delta)) {                                                      \
+      printf("FAIL: %s:%d: Expected %d, got %d (delta %d > tol %d)\n",         \
+             __FILE__, __LINE__, (int)(expected), (int)(actual), diff,         \
+             (int)(delta));                                                    \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
+
+void test_spline_catmull_rom(void) {
+  // Define 5 control points
+  meas_point_t points[] = {
+      {0, 0},   // P0
+      {20, 20}, // P1 (Start of curve)
+      {40, 10}, // P2
+      {60, 40}, // P3
+      {80, 0}   // P4 (End of curve for P1..P3 segment)
+  };
+
+  // We want to interpolate between P1..P3 (and P2..P? depending on segment
+  // count logic) count = 5. segments = 5 - 3 = 2. Segment 1: P0, P1, P2, P3 ->
+  // Interpolates P1 to P2 Segment 2: P1, P2, P3, P4 -> Interpolates P2 to P3
+
+  // Output buffer for 20 points (10 per segment)
+  meas_point_t output[21];
+  meas_math_spline_catmull_rom(points, 5, output, 20);
+
+  // Check critical points
+  // Index 0 should be P1 approx (t=0 of seg 1)
+  TEST_ASSERT_INT_WITHIN(1, 20, output[0].x);
+  TEST_ASSERT_INT_WITHIN(1, 20, output[0].y);
+
+  // Index 10 should be P2 approx (t=0 of seg 2 OR t=1 of seg 1)
+  TEST_ASSERT_INT_WITHIN(1, 40, output[10].x);
+  TEST_ASSERT_INT_WITHIN(1, 10, output[10].y);
+
+  // Index 19 roughly P3 (end of seg 2)
+  // The last point logic might clamp to P(N-2) -> P3 {60, 40}
+  TEST_ASSERT_INT_WITHIN(1, 60, output[19].x);
+  TEST_ASSERT_INT_WITHIN(1, 40, output[19].y);
+
+  printf("[FAST] Spline: Verified points P1(20,20)->P2(40,10)->P3(60,40)\n");
+}
+
 // ----------------------------------------------------------------------------
 // 6. Performance Benchmarks
 // ----------------------------------------------------------------------------
@@ -265,5 +314,6 @@ void run_fast_math_tests(void) {
   RUN_TEST(test_fast_log_accuracy);
   RUN_TEST(test_fast_modff_accuracy);
   RUN_TEST(test_fast_cbrt_accuracy);
+  RUN_TEST(test_spline_catmull_rom);
   RUN_TEST(test_fast_math_perf);
 }

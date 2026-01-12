@@ -1560,6 +1560,61 @@ static void cell_draw_text_rotated(meas_render_ctx_t *ctx, int16_t x, int16_t y,
   }
 }
 
+static void cell_draw_minmax_v(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                               int16_t w, int16_t h, const int16_t *data,
+                               size_t count, uint8_t alpha) {
+  if (!ctx || !data || count == 0 || w <= 0 || h <= 0)
+    return;
+
+  // We iterate through every horizontal pixel of the target rectangle.
+  // For each pixel column, we find the min and max data values that fall into
+  // it. This ensures we never miss a peak, even if the data is much denser than
+  // the screen (downsampling).
+  for (int16_t tx = 0; tx < w; tx++) {
+    // Map screen X to data index range.
+    // Use uint64_t to prevent overflow during multiply.
+    size_t idx_start = (size_t)((uint64_t)tx * count / w);
+    size_t idx_end = (size_t)((uint64_t)(tx + 1) * count / w);
+
+    if (idx_end > count)
+      idx_end = count;
+    if (idx_start >= count)
+      break;
+
+    // Handle upsampling case (count < w):
+    // Multiple pixels might map to the same data index.
+    // Ensure we look at least one point.
+    if (idx_start == idx_end) {
+      if (idx_start < count) {
+        idx_end = idx_start + 1;
+      } else {
+        continue;
+      }
+    }
+
+    // Find min/max in this slice
+    int16_t col_min = data[idx_start];
+    int16_t col_max = data[idx_start];
+
+    for (size_t k = idx_start + 1; k < idx_end; k++) {
+      int16_t val = data[k];
+      if (val < col_min)
+        col_min = val;
+      if (val > col_max)
+        col_max = val;
+    }
+
+    // Determine vertical span
+    // Data values are assumed to be Y-offsets relative to 'y'.
+    int16_t line_y_start = y + col_min;
+    int16_t line_height = col_max - col_min + 1;
+
+    // Draw vertical line using fill_rect optimization
+    // (Standard fill_rect handles Y-clipping)
+    cell_fill_rect(ctx, x + tx, line_y_start, 1, line_height, alpha);
+  }
+}
+
 const meas_render_api_t meas_render_cell_api = {
     .draw_pixel = cell_draw_pixel,
     .get_pixel = cell_get_pixel,
@@ -1594,4 +1649,6 @@ const meas_render_api_t meas_render_cell_api = {
     .fill_pie = cell_fill_pie,
     // Extended Text
     .measure_text = cell_measure_text,
-    .draw_text_rotated = cell_draw_text_rotated};
+    .draw_text_rotated = cell_draw_text_rotated,
+    // Advanced Plotting
+    .draw_minmax_v = cell_draw_minmax_v};

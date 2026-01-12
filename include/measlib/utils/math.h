@@ -249,4 +249,19 @@ meas_real_t meas_math_atan2(meas_real_t y, meas_real_t x);
  */
 meas_real_t meas_math_modf(meas_real_t x, meas_real_t *iptr);
 
+/**
+ * @brief Catmull-Rom Spline Interpolation.
+ * Generates a smooth curve passing through the given control points.
+ *
+ * @param points Array of input control points (must be >= 4 for full curve).
+ *               For N points, valid segments are between P[1]..P[N-2].
+ *               To interpolate P[0]..P[N-1], duplicate endpoints: P[0], P[0],
+ * P[1]...P[N-1], P[N-1].
+ * @param count Number of input points.
+ * @param output Output buffer for generated points.
+ * @param out_count Target number of points in the output buffer.
+ */
+void meas_math_spline_catmull_rom(const meas_point_t *points, size_t count,
+                                  meas_point_t *output, size_t out_count);
+
 #endif // MEASLIB_UTILS_MATH_H

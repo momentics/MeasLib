@@ -168,6 +168,18 @@ typedef struct {
                    int16_t start_angle, int16_t end_angle, uint8_t alpha);
   void (*fill_pie)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t r,
                    int16_t start_angle, int16_t end_angle, uint8_t alpha);
+
+  /**
+   * @brief Draw High-Density Min-Max Graph.
+   * Efficiently renders a graph with large number of points by calculating
+   * min/max for each X column.
+   *
+   * @param data Array of Y-coordinates (scaled to screen space).
+   * @param count Number of points in data.
+   */
+  void (*draw_minmax_v)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
+                        int16_t h, const int16_t *data, size_t count,
+                        uint8_t alpha);
 } meas_render_api_t;
 
 #endif // MEASLIB_UI_RENDER_H

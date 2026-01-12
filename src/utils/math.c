@@ -437,3 +437,65 @@ meas_real_t meas_math_extrap_linear(meas_real_t x, meas_real_t x0,
     return y0;
   return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
 }
+
+void meas_math_spline_catmull_rom(const meas_point_t *points, size_t count,
+                                  meas_point_t *output, size_t out_count) {
+  if (!points || count < 4 || !output || out_count < 2)
+    return;
+
+  // We have (count - 3) segments to interpolate.
+  // P0, P1, P2, P3 -> Segment is P1-P2.
+  size_t segments = count - 3;
+  if (segments == 0)
+    return;
+
+  // Reserve 1 point for the explicit endpoint P(N-2)
+  size_t loop_count = (out_count > 1) ? out_count - 1 : 0;
+
+  size_t points_per_segment = loop_count / segments;
+  size_t remaining = loop_count % segments;
+
+  size_t out_idx = 0;
+
+  for (size_t i = 0; i < segments; i++) {
+    const meas_point_t *p0 = &points[i];
+    const meas_point_t *p1 = &points[i + 1];
+    const meas_point_t *p2 = &points[i + 2];
+    const meas_point_t *p3 = &points[i + 3];
+
+    // Distribute remaining points to first segments
+    size_t seg_points = points_per_segment + (i < remaining ? 1 : 0);
+
+    // If we have very few points, some segments might get 0 loop points.
+    // That's acceptable, we just skip to the next.
+
+    for (size_t j = 0; j < seg_points; j++) {
+      meas_real_t t = (meas_real_t)j / (meas_real_t)seg_points;
+      meas_real_t t2 = t * t;
+      meas_real_t t3 = t2 * t;
+
+      // Catmull-Rom coefficients
+      meas_real_t x =
+          0.5 * ((2.0 * p1->x) + (-p0->x + p2->x) * t +
+                 (2.0 * p0->x - 5.0 * p1->x + 4.0 * p2->x - p3->x) * t2 +
+                 (-p0->x + 3.0 * p1->x - 3.0 * p2->x + p3->x) * t3);
+
+      meas_real_t y =
+          0.5 * ((2.0 * p1->y) + (-p0->y + p2->y) * t +
+                 (2.0 * p0->y - 5.0 * p1->y + 4.0 * p2->y - p3->y) * t2 +
+                 (-p0->y + 3.0 * p1->y - 3.0 * p2->y + p3->y) * t3);
+
+      if (out_idx < out_count) {
+        output[out_idx].x = (int16_t)x;
+        output[out_idx].y = (int16_t)y;
+        out_idx++;
+      }
+    }
+  }
+
+  // Ensure the very last point P(N-2) is included
+  if (out_idx < out_count) {
+    output[out_idx] = points[count - 2];
+    out_idx++;
+  }
+}
