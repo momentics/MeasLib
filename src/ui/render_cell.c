@@ -25,13 +25,48 @@ static bool is_inside_clip(meas_render_ctx_t *ctx, int16_t x, int16_t y) {
   return true;
 }
 
-// --- Primitives (Cell/Tile Operations) ---
+// --- Clip Stack ---
 
-static void cell_set_clip_rect(meas_render_ctx_t *ctx, meas_rect_t rect) {
-  if (!ctx)
+static void cell_push_clip_rect(meas_render_ctx_t *ctx, meas_rect_t rect) {
+  if (!ctx || ctx->clip_stack_ptr >= MEAS_MAX_CLIP_STACK)
     return;
-  ctx->clip_rect = rect;
+
+  // Save current clip
+  ctx->clip_stack[ctx->clip_stack_ptr++] = ctx->clip_rect;
+
+  // Intersect new with current
+  int16_t new_x = (rect.x > ctx->clip_rect.x) ? rect.x : ctx->clip_rect.x;
+  int16_t new_y = (rect.y > ctx->clip_rect.y) ? rect.y : ctx->clip_rect.y;
+  int16_t new_r = (rect.x + rect.w < ctx->clip_rect.x + ctx->clip_rect.w)
+                      ? rect.x + rect.w
+                      : ctx->clip_rect.x + ctx->clip_rect.w;
+  int16_t new_b = (rect.y + rect.h < ctx->clip_rect.y + ctx->clip_rect.h)
+                      ? rect.y + rect.h
+                      : ctx->clip_rect.y + ctx->clip_rect.h;
+
+  if (new_x < new_r && new_y < new_b) {
+    ctx->clip_rect = (meas_rect_t){new_x, new_y, (int16_t)(new_r - new_x),
+                                   (int16_t)(new_b - new_y)};
+  } else {
+    // Empty clip
+    ctx->clip_rect = (meas_rect_t){0, 0, 0, 0};
+  }
 }
+
+static meas_rect_t cell_pop_clip_rect(meas_render_ctx_t *ctx) {
+  if (!ctx || ctx->clip_stack_ptr == 0) {
+    // If stack empty, return current (or empty? Current is safer as no-op)
+    // Assuming no-op if underflow.
+    if (ctx)
+      return ctx->clip_rect;
+    return (meas_rect_t){0, 0, 0, 0};
+  }
+
+  ctx->clip_rect = ctx->clip_stack[--ctx->clip_stack_ptr];
+  return ctx->clip_rect;
+}
+
+// --- Primitives (Cell/Tile Operations) ---
 
 // --- Helpers ---
 
@@ -641,6 +676,135 @@ static void cell_fill_polygon(meas_render_ctx_t *ctx,
   }
 }
 
+// --- Triangle Primitives ---
+
+static void cell_fill_triangle(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                               int16_t x1, int16_t y1, int16_t x2, int16_t y2,
+                               uint8_t alpha) {
+  if (!ctx || !ctx->buffer)
+    return;
+
+  // Sort by Y: y0 <= y1 <= y2
+  if (y0 > y1) {
+    int16_t t;
+    t = y0;
+    y0 = y1;
+    y1 = t;
+    t = x0;
+    x0 = x1;
+    x1 = t;
+  }
+  if (y0 > y2) {
+    int16_t t;
+    t = y0;
+    y0 = y2;
+    y2 = t;
+    t = x0;
+    x0 = x2;
+    x2 = t;
+  }
+  if (y1 > y2) {
+    int16_t t;
+    t = y1;
+    y1 = y2;
+    y2 = t;
+    t = x1;
+    x1 = x2;
+    x2 = t;
+  }
+
+  // Check visibility (Y range)
+  if (y2 < ctx->clip_rect.y || y0 >= ctx->clip_rect.y + ctx->clip_rect.h)
+    return;
+
+  int16_t total_height = y2 - y0;
+  if (total_height == 0)
+    return;
+
+  int16_t y;
+  for (y = y0; y <= y2; y++) {
+    // Skip if off-screen Y
+    if (y < ctx->clip_rect.y || y >= ctx->clip_rect.y + ctx->clip_rect.h)
+      continue;
+
+    // Standard scanline logic
+    // Segment A: V0 -> V2 (Long side)
+    // Segment B: V0 -> V1 (Top half short
+    // side) OR V1 -> V2 (Bottom half short
+    // side)
+
+    int16_t x_start, x_end;
+
+    // Interpolate Long Side (V0 -> V2)
+    // x = x0 + (y - y0) * (x2 - x0) / (y2 -
+    // y0)
+    x_start = x0 + ((int32_t)(y - y0) * (x2 - x0)) / total_height;
+
+    // Interpolate Short Side
+    if (y < y1) {
+      // V0 -> V1
+      int16_t h = y1 - y0;
+      if (h == 0)
+        x_end = x0; // Should not happen if
+                    // loop condition meets
+      else
+        x_end = x0 + ((int32_t)(y - y0) * (x1 - x0)) / h;
+    } else {
+      // V1 -> V2
+      int16_t h = y2 - y1;
+      if (h == 0)
+        x_end = x1;
+      else
+        x_end = x1 + ((int32_t)(y - y1) * (x2 - x1)) / h;
+    }
+
+    // Sort X
+    if (x_start > x_end) {
+      int16_t t = x_start;
+      x_start = x_end;
+      x_end = t;
+    }
+
+    // Clip X
+    if (x_start < ctx->clip_rect.x)
+      x_start = ctx->clip_rect.x;
+    if (x_end > ctx->clip_rect.x + ctx->clip_rect.w)
+      x_end = ctx->clip_rect.x + ctx->clip_rect.w;
+
+    if (x_start >= x_end)
+      continue;
+
+    // To Tile Coords
+    int16_t lx_start = x_start - ctx->x_offset;
+    int16_t lx_end = x_end - ctx->x_offset;
+    int16_t ly = y - ctx->y_offset;
+
+    if (ly < 0 || ly >= ctx->height)
+      continue;
+
+    if (lx_start < 0)
+      lx_start = 0;
+    if (lx_end > ctx->width)
+      lx_end = ctx->width;
+
+    if (lx_start >= lx_end)
+      continue;
+
+    // Draw Span
+    meas_pixel_t *row = &ctx->buffer[ly * ctx->width + lx_start];
+    int16_t w = lx_end - lx_start;
+    meas_pixel_t color = ctx->fg_color;
+
+    if (alpha == MEAS_ALPHA_OPAQUE) {
+      for (int k = 0; k < w; k++)
+        row[k] = color;
+    } else {
+      for (int k = 0; k < w; k++)
+        row[k] = alpha_blend(row[k], color, alpha);
+    }
+  }
+}
+
 // --- Round Rect Primitives ---
 
 static void cell_draw_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
@@ -716,7 +880,8 @@ static void cell_draw_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
     cell_draw_pixel(ctx, xbr + cy, ybr + cx, alpha);
   }
 
-  // Handle Diagonals (floating point to int artifact in Bresenham logic)
+  // Handle Diagonals (floating point to int
+  // artifact in Bresenham logic)
   if (cx == cy) {
     cell_draw_pixel(ctx, xtl - cx, ytl - cy, alpha);
     cell_draw_pixel(ctx, xtr + cx, ytr - cy, alpha);
@@ -745,10 +910,12 @@ static void cell_fill_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
   }
 
   // 1. Fill Central Body
-  // From y+r to y+h-r-1 (Inclusive height is h - 2r)
+  // From y+r to y+h-r-1 (Inclusive height is h
+  // - 2r)
   cell_fill_rect(ctx, x, y + r, w, h - 2 * r, alpha);
 
-  // 2. Fill Top/Bottom Strips + Corners using Bresenham
+  // 2. Fill Top/Bottom Strips + Corners using
+  // Bresenham
 
   // Centers
   int16_t xtl = x + r;
@@ -758,16 +925,20 @@ static void cell_fill_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
 
   // Draw helper for scanlines
   // We need to fill for each Y step.
-  // The standard bresenham iterates `cx` (x offset) and `cy` (y offset).
-  // We mirror for top and bottom.
+  // The standard bresenham iterates `cx` (x
+  // offset) and `cy` (y offset). We mirror for
+  // top and bottom.
 
-  // Initial strip at offset `r` (should be covered by central body if exact,
-  // but let's effectively do rows `ytl - cy` and `ybl + cy`
-  // as cy goes from r down to 0... wait bresenham goes 0 to r?
-  // cx goes 0..~0.7r. cy goes r..~0.7r.
+  // Initial strip at offset `r` (should be
+  // covered by central body if exact, but
+  // let's effectively do rows `ytl - cy` and
+  // `ybl + cy` as cy goes from r down to 0...
+  // wait bresenham goes 0 to r? cx goes
+  // 0..~0.7r. cy goes r..~0.7r.
 
-  // We need to cover all Y offsets from 1 to `r`.
-  // Standard "Fill Circle" approach iterates Y.
+  // We need to cover all Y offsets from 1 to
+  // `r`. Standard "Fill Circle" approach
+  // iterates Y.
 
   int16_t current_y = r;
   int16_t current_x = 0;
@@ -775,22 +946,27 @@ static void cell_fill_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
 
   while (current_y >= current_x) {
     // Scanline 1: Offset Y = current_y
-    // Rows: ytl - current_y AND ybl + current_y
-    // Width span: from (xtl - current_x) to (xtr + current_x)
-    // Note: xtr is `x + w - 1 - r`.
-    // Span width = (xtr + current_x) - (xtl - current_x) + 1
-    //            = (x + w - 1 - r + x) - (x + r - x) + 1
-    //            = w - 2r + 2x - 1 + 1 = w - 2r + 2x
+    // Rows: ytl - current_y AND ybl +
+    // current_y Width span: from (xtl -
+    // current_x) to (xtr + current_x) Note:
+    // xtr is `x + w - 1 - r`. Span width =
+    // (xtr + current_x) - (xtl - current_x) +
+    // 1
+    //            = (x + w - 1 - r + x) - (x +
+    //            r - x) + 1 = w - 2r + 2x - 1
+    //            + 1 = w - 2r + 2x
     // Wait, let's use calc:
     // Start X = xtl - current_x
-    // Width = (xtr + current_x) - (xtl - current_x) + 1
+    // Width = (xtr + current_x) - (xtl -
+    // current_x) + 1
 
     int16_t span_w_narrow = (xtr + current_x) - (xtl - current_x) + 1;
     int16_t span_w_wide = (xtr + current_y) - (xtl - current_y) + 1;
 
     // Top Bounds
     // Row (ytl - current_y): Wide Span
-    if (current_x > 0) { // Avoid overlapping central rect (offset 0)
+    if (current_x > 0) { // Avoid overlapping central rect
+                         // (offset 0)
       cell_fill_rect(ctx, xtl - current_y, ytl - current_x, span_w_wide, 1,
                      alpha);
       cell_fill_rect(ctx, xtl - current_y, ybl + current_x, span_w_wide, 1,
@@ -862,13 +1038,16 @@ void cell_draw_text(meas_render_ctx_t *ctx, int16_t x, int16_t y,
     if (glyph_data) {
       if (f->height > 8) {
         // Large Font (Native 16-bit)
-        // Ensure aligned access if possible, or use memcpy safe read if
-        // architecture strict Since we controls fonts, we assume 16-bit
+        // Ensure aligned access if possible,
+        // or use memcpy safe read if
+        // architecture strict Since we
+        // controls fonts, we assume 16-bit
         // alignment.
         const uint16_t *u16_data = (const uint16_t *)glyph_data;
         for (int r = 0; r < gh; r++) {
           uint16_t row_bits = u16_data[r];
-          // Row width is typically 11-16 pixels.
+          // Row width is typically 11-16
+          // pixels.
           for (int cx = 0; cx < 16; cx++) {
             if (row_bits & (0x8000 >> cx)) {
               cell_draw_pixel(ctx, cur_x + cx, cur_y + r, alpha);
@@ -999,8 +1178,9 @@ static void cell_draw_line_patt(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
   }
 
   // Bresenham with Pattern
-  // Logic duplicated to avoid function call overhead in tight loop or
-  // complexity of generic callback
+  // Logic duplicated to avoid function call
+  // overhead in tight loop or complexity of
+  // generic callback
   int16_t dx = abs(x1 - x0);
   int16_t dy = abs(y1 - y0);
   int16_t sx = (x0 < x1) ? 1 : -1;
@@ -1011,7 +1191,8 @@ static void cell_draw_line_patt(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
   uint8_t bit_counter = 0;
 
   while (1) {
-    // Check pattern: MSB first (0x80) rotated by bit_counter
+    // Check pattern: MSB first (0x80) rotated
+    // by bit_counter
     if (pattern & (0x80 >> (bit_counter & 7))) {
       cell_draw_pixel(ctx, x0, y0, alpha);
     }
@@ -1031,6 +1212,181 @@ static void cell_draw_line_patt(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
   }
 }
 
+// --- Arcs and Sectors ---
+#include "measlib/utils/math.h" // For atan2, etc
+
+static void cell_draw_arc(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                          int16_t r, int16_t start_angle, int16_t end_angle,
+                          uint8_t alpha) {
+  // Bresenham Circle with angle check
+  // Optimization: Precompute octant visibility/angles?
+  // Doing per-pixel atan2 is expensive.
+  // BUT we have meas_math_atan2 which is somewhat fast.
+  // Let's implement full circle iteration and check angles.
+  // Angles in degrees 0..360.
+
+  int16_t f = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = -2 * r;
+  int16_t cx = 0;
+  int16_t cy = r;
+
+  // Standard Bresenham octants
+  // Function to check point and draw
+  // Lambda-like helper macro or function
+
+  // Normalize angles to 0-360
+  while (start_angle < 0)
+    start_angle += 360;
+  while (start_angle >= 360)
+    start_angle -= 360;
+  while (end_angle < 0)
+    end_angle += 360;
+  while (end_angle >= 360)
+    end_angle -= 360;
+
+  bool cross_zero = (end_angle < start_angle);
+
+#define CHECK_AND_DRAW(px, py)                                                 \
+  do {                                                                         \
+    float ang = meas_math_atan2((float)((py) - y), (float)((px) - x)) *        \
+                180.0f / 3.14159f;                                             \
+    if (ang < 0)                                                               \
+      ang += 360.0f;                                                           \
+    int16_t iang = (int16_t)ang;                                               \
+    bool visible = false;                                                      \
+    if (!cross_zero) {                                                         \
+      if (iang >= start_angle && iang <= end_angle)                            \
+        visible = true;                                                        \
+    } else {                                                                   \
+      if (iang >= start_angle || iang <= end_angle)                            \
+        visible = true;                                                        \
+    }                                                                          \
+    if (visible)                                                               \
+      cell_draw_pixel(ctx, px, py, alpha);                                     \
+  } while (0)
+
+  CHECK_AND_DRAW(x, y + r);
+  CHECK_AND_DRAW(x, y - r);
+  CHECK_AND_DRAW(x + r, y);
+  CHECK_AND_DRAW(x - r, y);
+
+  while (cx < cy) {
+    if (f >= 0) {
+      cy--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    cx++;
+    ddF_x += 2;
+    f += ddF_x;
+
+    CHECK_AND_DRAW(x + cx, y + cy);
+    CHECK_AND_DRAW(x - cx, y + cy);
+    CHECK_AND_DRAW(x + cx, y - cy);
+    CHECK_AND_DRAW(x - cx, y - cy);
+    CHECK_AND_DRAW(x + cy, y + cx);
+    CHECK_AND_DRAW(x - cy, y + cx);
+    CHECK_AND_DRAW(x + cy, y - cx);
+    CHECK_AND_DRAW(x - cy, y - cx);
+  }
+#undef CHECK_AND_DRAW
+}
+
+static void cell_fill_pie(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                          int16_t r, int16_t start_angle, int16_t end_angle,
+                          uint8_t alpha) {
+  // Fill circle but restricted by angles.
+  // Iterating BB and checking atan2 is 'safest' for correctness but slow.
+  // Scanline approach is complex for pie slices.
+  // Given the constraints and likely usage (small indicators),
+  // we use a BB iterator with bounding box optimization.
+
+  // Normalize angles
+  while (start_angle < 0)
+    start_angle += 360;
+  while (start_angle >= 360)
+    start_angle -= 360;
+  while (end_angle < 0)
+    end_angle += 360;
+  while (end_angle >= 360)
+    end_angle -= 360;
+  bool cross_zero = (end_angle < start_angle);
+
+  int16_t x0 = x - r;
+  int16_t y0 = y - r;
+  int16_t x1 = x + r;
+  int16_t y1 = y + r;
+
+  // Clip to global
+  if (x0 < ctx->clip_rect.x)
+    x0 = ctx->clip_rect.x;
+  if (y0 < ctx->clip_rect.y)
+    y0 = ctx->clip_rect.y;
+  if (x1 >= ctx->clip_rect.x + ctx->clip_rect.w)
+    x1 = ctx->clip_rect.x + ctx->clip_rect.w - 1;
+  if (y1 >= ctx->clip_rect.y + ctx->clip_rect.h)
+    y1 = ctx->clip_rect.y + ctx->clip_rect.h - 1;
+
+  // Tile Clip
+  int16_t tx0 = x0 - ctx->x_offset;
+  int16_t ty0 = y0 - ctx->y_offset;
+  int16_t tx1 = x1 - ctx->x_offset;
+  int16_t ty1 = y1 - ctx->y_offset;
+
+  if (tx0 < 0)
+    tx0 = 0;
+  if (ty0 < 0)
+    ty0 = 0;
+  if (tx1 >= ctx->width)
+    tx1 = ctx->width - 1;
+  if (ty1 >= ctx->height)
+    ty1 = ctx->height - 1;
+
+  if (tx0 > tx1 || ty0 > ty1)
+    return;
+
+  int32_t r2 = r * r;
+
+  for (int16_t cy = ty0; cy <= ty1; cy++) {
+    meas_pixel_t *row = &ctx->buffer[cy * ctx->width];
+    int16_t gy = cy + ctx->y_offset;
+    int32_t dy = gy - y;
+    int32_t dy2 = dy * dy;
+
+    for (int16_t cx = tx0; cx <= tx1; cx++) {
+      int16_t gx = cx + ctx->x_offset;
+      int32_t dx = gx - x;
+
+      // Check Radius
+      if (dx * dx + dy2 <= r2) {
+        // Check Angle
+        float ang = meas_math_atan2((float)dy, (float)dx) * 180.0f / 3.14159f;
+        if (ang < 0)
+          ang += 360.0f;
+        int16_t iang = (int16_t)ang;
+
+        bool visible = false;
+        if (!cross_zero) {
+          if (iang >= start_angle && iang <= end_angle)
+            visible = true;
+        } else {
+          if (iang >= start_angle || iang <= end_angle)
+            visible = true;
+        }
+
+        if (visible) {
+          if (alpha == MEAS_ALPHA_OPAQUE) {
+            row[cx] = ctx->fg_color;
+          } else {
+            row[cx] = alpha_blend(row[cx], ctx->fg_color, alpha);
+          }
+        }
+      }
+    }
+  }
+}
+
 const meas_render_api_t meas_render_cell_api = {
     .draw_pixel = cell_draw_pixel,
     .get_pixel = cell_get_pixel,
@@ -1043,7 +1399,6 @@ const meas_render_api_t meas_render_cell_api = {
     .fill_gradient_v = cell_fill_gradient_v,
     .fill_gradient_h = cell_fill_gradient_h,
     .get_dims = cell_get_dims,
-    .set_clip_rect = cell_set_clip_rect,
     .draw_rect = cell_draw_rect,
     .draw_circle = cell_draw_circle,
     .fill_circle = cell_fill_circle,
@@ -1055,4 +1410,9 @@ const meas_render_api_t meas_render_cell_api = {
     .draw_text_aligned = cell_draw_text_aligned,
     .invert_rect = cell_invert_rect,
     .get_clip_rect = cell_get_clip_rect,
-    .draw_line_patt = cell_draw_line_patt};
+    .draw_line_patt = cell_draw_line_patt,
+    .push_clip_rect = cell_push_clip_rect,
+    .pop_clip_rect = cell_pop_clip_rect,
+    .fill_triangle = cell_fill_triangle,
+    .draw_arc = cell_draw_arc,
+    .fill_pie = cell_fill_pie};
