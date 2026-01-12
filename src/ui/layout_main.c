@@ -16,7 +16,7 @@ static void step_draw_bg(const meas_ui_t *ui, meas_render_ctx_t *ctx,
   (void)ui;
   // Layer 0: Background
   // Gradient: Deep Blue (Top) -> Black (Bottom)
-  api->fill_gradient_v(ctx, 0, 0, 320, 240, 0x0010, 0x0000);
+  api->fill_gradient_v(ctx, 0, 0, 320, 240, 0x0010, 0x0000, MEAS_ALPHA_OPAQUE);
 }
 
 static void step_draw_grid(const meas_ui_t *ui, meas_render_ctx_t *ctx,
@@ -25,8 +25,8 @@ static void step_draw_grid(const meas_ui_t *ui, meas_render_ctx_t *ctx,
   // Layer 1: Grid (Stub)
   // Example: Draw the Crosshair here as part of the grid
   ctx->fg_color = 0x07E0; // Green
-  api->draw_line(ctx, 160, 0, 160, 240);
-  api->draw_line(ctx, 0, 120, 320, 120);
+  api->draw_line(ctx, 160, 0, 160, 240, MEAS_ALPHA_OPAQUE);
+  api->draw_line(ctx, 0, 120, 320, 120, MEAS_ALPHA_OPAQUE);
 }
 
 static void step_draw_traces(const meas_ui_t *ui, meas_render_ctx_t *ctx,
@@ -35,7 +35,7 @@ static void step_draw_traces(const meas_ui_t *ui, meas_render_ctx_t *ctx,
   // Layer 2: Traces
   // Draw the Test White Line
   ctx->fg_color = 0xFFFF; // White
-  api->draw_line(ctx, 0, 0, 320, 240);
+  api->draw_line(ctx, 0, 0, 320, 240, MEAS_ALPHA_OPAQUE);
 }
 
 static void step_draw_overlay(const meas_ui_t *ui, meas_render_ctx_t *ctx,
@@ -44,17 +44,22 @@ static void step_draw_overlay(const meas_ui_t *ui, meas_render_ctx_t *ctx,
   // Layer 4: Overlay (Menu/Widgets)
   // Draw the Red Test Box
   ctx->fg_color = 0xF800; // Red
-  api->fill_rect(ctx, 100, 100, 120, 40);
+  api->fill_rect(ctx, 100, 100, 120, 40, MEAS_ALPHA_OPAQUE);
 
   // Demo: Yellow Triangle
   meas_point_t triangle[] = {{160, 50}, {200, 90}, {120, 90}};
   ctx->fg_color = 0xFFE0; // Yellow
-  api->fill_polygon(ctx, triangle, 3);
+  api->fill_polygon(ctx, triangle, 3, MEAS_ALPHA_OPAQUE);
 
   // Demo: Cyan Polyline
   meas_point_t zigzag[] = {{10, 200}, {30, 180}, {50, 200}, {70, 180}};
   ctx->fg_color = 0x07FF; // Cyan
-  api->draw_polyline(ctx, zigzag, 4);
+  api->draw_polyline(ctx, zigzag, 4, MEAS_ALPHA_OPAQUE);
+
+  // Demo: Semi-Transparent Blue overlap
+  ctx->fg_color = 0x001F; // Blue
+  // Draw over the Red Box to test blending (Purple-ish result expected)
+  api->fill_rect(ctx, 110, 110, 50, 50, MEAS_ALPHA_50);
 }
 
 // --- Pipeline Definition ---

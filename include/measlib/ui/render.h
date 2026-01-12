@@ -32,35 +32,50 @@ typedef struct {
 } meas_render_ctx_t;
 
 /**
+ * @brief Common Alpha Values (Opacity).
+ * 0 = Fully Transparent, 255 = Fully Opaque.
+ */
+typedef enum {
+  MEAS_ALPHA_TRANSPARENT = 0,
+  MEAS_ALPHA_25 = 64,
+  MEAS_ALPHA_50 = 127,
+  MEAS_ALPHA_75 = 191,
+  MEAS_ALPHA_OPAQUE = 255
+} meas_alpha_t;
+
+/**
  * @brief Drawing API (VTable)
  */
 typedef struct {
-  void (*draw_pixel)(meas_render_ctx_t *ctx, int16_t x, int16_t y);
+  void (*draw_pixel)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                     uint8_t alpha);
+  meas_pixel_t (*get_pixel)(meas_render_ctx_t *ctx, int16_t x, int16_t y);
+
   void (*draw_line)(meas_render_ctx_t *ctx, int16_t x0, int16_t y0, int16_t x1,
-                    int16_t y1);
+                    int16_t y1, uint8_t alpha);
   void (*draw_polyline)(meas_render_ctx_t *ctx, const meas_point_t *points,
-                        uint16_t count);
+                        uint16_t count, uint8_t alpha);
   void (*fill_rect)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
-                    int16_t h);
+                    int16_t h, uint8_t alpha);
   void (*fill_polygon)(meas_render_ctx_t *ctx, const meas_point_t *points,
-                       uint16_t count);
+                       uint16_t count, uint8_t alpha);
   void (*blit)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
-               int16_t h, const void *img);
+               int16_t h, const void *img, uint8_t alpha);
   void (*draw_text)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
-                    const char *text);
+                    const char *text, uint8_t alpha);
   void (*fill_gradient_v)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                           int16_t w, int16_t h, meas_pixel_t c1,
-                          meas_pixel_t c2);
+                          meas_pixel_t c2, uint8_t alpha);
   void (*fill_gradient_h)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                           int16_t w, int16_t h, meas_pixel_t c1,
-                          meas_pixel_t c2);
+                          meas_pixel_t c2, uint8_t alpha);
   void (*get_dims)(meas_render_ctx_t *ctx, int16_t *w, int16_t *h);
   void (*set_clip_rect)(meas_render_ctx_t *ctx, meas_rect_t rect);
-  void (*draw_rect)(meas_render_ctx_t *ctx, meas_rect_t rect);
+  void (*draw_rect)(meas_render_ctx_t *ctx, meas_rect_t rect, uint8_t alpha);
   void (*draw_circle)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
-                      int16_t radius);
+                      int16_t radius, uint8_t alpha);
   void (*fill_circle)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
-                      int16_t radius);
+                      int16_t radius, uint8_t alpha);
 } meas_render_api_t;
 
 #endif // MEASLIB_UI_RENDER_H
