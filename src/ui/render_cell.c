@@ -1430,6 +1430,73 @@ static void cell_draw_triangle(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
   cell_draw_line(ctx, x2, y2, x0, y0, alpha);
 }
 
+static void cell_draw_text_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
+                                const char *text, uint8_t align,
+                                uint8_t alpha) {
+  if (!ctx || !text || !ctx->font)
+    return;
+
+  // Simple Word Wrap implementation
+  // Note: Does not handle VCENTER/BOTTOM alignment in this pass (requires
+  // pre-calculation of lines) Implements TOP alignment, with LEFT/CENTER/RIGHT
+  // support.
+
+  int16_t cur_x = rect.x;
+  int16_t cur_y = rect.y;
+  int16_t line_height = ctx->font->height;
+  int16_t space_width = cell_get_text_width(ctx, " ");
+
+  const char *ptr = text;
+  while (*ptr) {
+    const char *word_start = ptr;
+    int16_t word_len = 0;
+
+    // Find next word
+    while (*ptr && *ptr != ' ' && *ptr != '\n') {
+      ptr++;
+      word_len++;
+    }
+
+    // Measure word
+    char word_buf[64];
+    if (word_len >= 63)
+      word_len = 63;
+    memcpy(word_buf, word_start, word_len);
+    word_buf[word_len] = '\0';
+
+    int16_t word_w = cell_get_text_width(ctx, word_buf);
+
+    // New Line check
+    if (cur_x + word_w > rect.x + rect.w) {
+      // Move to next line
+      cur_x = rect.x;
+      cur_y += line_height;
+    }
+
+    // Clip Y
+    if (cur_y + line_height > rect.y + rect.h)
+      break;
+
+    // Draw Word
+    // TODO: Handle Align (Requires per-line buffer or 2-pass)
+    // For now, defaulting to LEFT alignment flow.
+    // Ideally this function would fill a line buffer then draw it.
+
+    cell_draw_text(ctx, cur_x, cur_y, word_buf, alpha);
+    cur_x += word_w;
+
+    // Handle space or newline
+    if (*ptr == ' ') {
+      cur_x += space_width;
+      ptr++;
+    } else if (*ptr == '\n') {
+      cur_x = rect.x;
+      cur_y += line_height;
+      ptr++;
+    }
+  }
+}
+
 const meas_render_api_t meas_render_cell_api = {
     .draw_pixel = cell_draw_pixel,
     .get_pixel = cell_get_pixel,
@@ -1451,6 +1518,7 @@ const meas_render_api_t meas_render_cell_api = {
     .get_text_width = cell_get_text_width,
     .get_text_height = cell_get_text_height,
     .draw_text_aligned = cell_draw_text_aligned,
+    .draw_text_rect = cell_draw_text_rect,
     .invert_rect = cell_invert_rect,
     .get_clip_rect = cell_get_clip_rect,
     .draw_line_patt = cell_draw_line_patt,

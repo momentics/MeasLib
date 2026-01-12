@@ -126,6 +126,8 @@ typedef struct {
   // Extended API
   void (*draw_text_aligned)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                             const char *text, uint8_t align, uint8_t alpha);
+  void (*draw_text_rect)(meas_render_ctx_t *ctx, meas_rect_t rect,
+                         const char *text, uint8_t align, uint8_t alpha);
   void (*invert_rect)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
                       int16_t h);
   meas_rect_t (*get_clip_rect)(meas_render_ctx_t *ctx);
