@@ -141,7 +141,7 @@ static void match_quad(float a, float b, float c, float *r) {
 static void match_calc_hi(float R0, float RL, float XL,
                           meas_dsp_match_result_t *m) {
   float xp[2];
-  // Equations from NanoVNA-X
+  // Solve Quadratic for matching network calculations
   match_quad(R0 - RL, 2.0f * XL * R0, R0 * (XL * XL + RL * RL), xp);
 
   for (int i = 0; i < 2; i++) {
