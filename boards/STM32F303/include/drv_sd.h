@@ -13,6 +13,7 @@
 #ifndef MEASLIB_DRIVERS_STM32F303_DRV_SD_H
 #define MEASLIB_DRIVERS_STM32F303_DRV_SD_H
 
+#include "measlib/drivers/hal.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -35,36 +36,41 @@ typedef enum {
 // --- API ---
 
 /**
- * @brief Initialize the SD Card driver and the card itself.
+ * @brief Initialize the SD Card Driver (SPI based).
  *
- * Performs the SPI initialization and the SD Card initialization sequence:
- * CMD0 (Reset), CMD8 (Check Voltage), ACMD41 (Init), CMD58 (OCR/Capacity).
- * Switches SPI to High Speed upon success.
- *
- * @return MEAS_SD_OK on success, error code otherwise.
+ * Configures GPIO and SPI, then attempts to initialize the SD Card.
+ * @return Pointer to the Storage Driver Context, or NULL if failed.
  */
-meas_sd_status_t meas_drv_sd_init(void);
+void *meas_drv_sd_init(void);
+
+/**
+ * @brief Get the Storage HAL API VTable.
+ * @return Pointer to the API VTable
+ */
+const meas_hal_storage_api_t *meas_drv_sd_get_api(void);
 
 /**
  * @brief Read one or more 512-byte blocks from the SD Card.
  *
+ * @param ctx Driver context.
  * @param sector Start sector index (LBA).
  * @param buffer Pointer to the destination buffer.
  * @param count Number of blocks to read.
  * @return MEAS_SD_OK on success.
  */
-meas_sd_status_t meas_drv_sd_read_blocks(uint32_t sector, uint8_t *buffer,
-                                         uint32_t count);
+meas_sd_status_t meas_drv_sd_read_blocks(void *ctx, uint32_t sector,
+                                         uint8_t *buffer, uint32_t count);
 
 /**
  * @brief Write one or more 512-byte blocks to the SD Card.
  *
+ * @param ctx Driver context.
  * @param sector Start sector index (LBA).
  * @param buffer Pointer to the source data.
  * @param count Number of blocks to write.
  * @return MEAS_SD_OK on success.
  */
-meas_sd_status_t meas_drv_sd_write_blocks(uint32_t sector,
+meas_sd_status_t meas_drv_sd_write_blocks(void *ctx, uint32_t sector,
                                           const uint8_t *buffer,
                                           uint32_t count);
 

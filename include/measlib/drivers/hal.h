@@ -90,4 +90,33 @@ typedef struct {
   bool (*is_connected)(void *ctx);
 } meas_hal_link_api_t;
 
+/**
+ * @brief Storage (Block Device) Interface
+ * For SD Card, Flash, etc.
+ */
+typedef struct {
+  meas_status_t (*read)(void *ctx, uint32_t sector, void *buffer,
+                        uint32_t count);
+  meas_status_t (*write)(void *ctx, uint32_t sector, const void *buffer,
+                         uint32_t count);
+  uint32_t (*get_capacity)(void *ctx); // Returns sector count
+  bool (*is_ready)(void *ctx);
+} meas_hal_storage_api_t;
+
+/**
+ * @brief Display Driver Interface
+ * Low-level window/pixel access.
+ */
+typedef struct {
+  meas_status_t (*set_window)(void *ctx, uint16_t x, uint16_t y, uint16_t w,
+                              uint16_t h);
+  meas_status_t (*fill_rect)(void *ctx, uint16_t x, uint16_t y, uint16_t w,
+                             uint16_t h, uint16_t color);
+  meas_status_t (*blit)(void *ctx, uint16_t x, uint16_t y, uint16_t w,
+                        uint16_t h, const void *pixels);
+  meas_status_t (*set_orientation)(void *ctx, uint8_t rotation, bool bgr);
+  uint16_t (*get_width)(void *ctx);
+  uint16_t (*get_height)(void *ctx);
+} meas_hal_display_api_t;
+
 #endif // MEASLIB_DRIVERS_HAL_H

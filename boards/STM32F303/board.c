@@ -7,6 +7,7 @@
  *
  */
 
+#include "drv_lcd.h"
 #include "drv_sd.h"
 #include "gpio_defaults.h"
 #include "measlib/drivers/api.h"
@@ -18,7 +19,6 @@
 meas_hal_rx_api_t *meas_drv_adc_init(void);
 meas_hal_synth_api_t *meas_drv_synth_init(void);
 meas_hal_io_api_t *meas_drv_controls_init(void);
-void *meas_drv_lcd_init(void);
 meas_hal_touch_api_t *meas_drv_touch_init(void);
 meas_hal_wdg_api_t *meas_drv_wdg_init(void);
 meas_hal_flash_api_t *meas_drv_flash_init(void);
@@ -307,12 +307,13 @@ void sys_init(void) {
   meas_drv_adc_init();
   meas_drv_synth_init();
   meas_drv_controls_init();
-  meas_drv_lcd_init();
   meas_drv_touch_init();
   meas_drv_wdg_init();
   meas_drv_flash_init();
-  meas_drv_usb_init();
+  meas_drv_usb_init(); // Restored USB Init
+
   meas_drv_sd_init();
+  meas_drv_lcd_init();
 
   // 2. Event Loop Init
   // meas_event_loop_init();

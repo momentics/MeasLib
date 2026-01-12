@@ -15,6 +15,7 @@
  */
 
 #include "drv_sd.h"
+#include "measlib/drivers/hal.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -45,28 +46,6 @@ typedef struct {
 } SPI_TypeDef;
 
 typedef struct {
-  volatile uint32_t APB2ENR;
-  volatile uint32_t AHBENR;
-} RCC_TypeDef;
-
-#define PERIPH_BASE 0x40000000UL
-#define AHBPERIPH_BASE (PERIPH_BASE + 0x00020000UL)
-#define APB2PERIPH_BASE (PERIPH_BASE + 0x00010000UL)
-
-#define RCC_BASE (AHBPERIPH_BASE + 0x1000UL)
-#define GPIOB_BASE (0x48000400UL)              // AHB2
-#define SPI1_BASE (APB2PERIPH_BASE + 0x3000UL) // 0x40013000
-
-#define RCC                                                                    \
-  ((RCC_TypeDef *)(RCC_BASE + 0x14)) // Offset to reach APB2ENR/AHBENR properly?
-// Wait, RCC struct in drv_i2c was minimal. Let's match offsets.
-// RCC_BASE in drv_i2c.c = 0x40021000
-// AHBENR is at offset 0x14. APB2ENR is at 0x18.
-// Let's redefine RCC properly.
-
-#undef RCC
-#define RCC_ADDR 0x40021000UL
-typedef struct {
   volatile uint32_t CR;
   volatile uint32_t CFGR;
   volatile uint32_t CIR;
@@ -75,9 +54,13 @@ typedef struct {
   volatile uint32_t AHBENR;
   volatile uint32_t APB2ENR;
   volatile uint32_t APB1ENR;
-} RCC_Full_TypeDef;
-#define RCC ((RCC_Full_TypeDef *)RCC_ADDR)
+} RCC_TypeDef;
 
+#define RCC_ADDR 0x40021000UL
+#define GPIOB_BASE (0x48000400UL) // AHB2
+#define SPI1_BASE (0x40013000UL)  // APB2
+
+#define RCC ((RCC_TypeDef *)RCC_ADDR)
 #define GPIOB ((GPIO_TypeDef *)GPIOB_BASE)
 #define SPI1 ((SPI_TypeDef *)SPI1_BASE)
 
@@ -105,12 +88,8 @@ typedef struct {
 #define SPI_SR_BSY (1UL << 7)
 
 // Pin Defs
-#define SD_CS_PIN 11  // PB11
-#define SD_SCK_PIN 3  // PB3
-#define SD_MISO_PIN 4 // PB4
-#define SD_MOSI_PIN 5 // PB5
+#define SD_CS_PIN 11 // PB11
 
-// Configuration
 #define SD_SPI SPI1
 
 // SPI Commands
@@ -132,11 +111,15 @@ typedef struct {
 #define CMD55 (55)         // APP_CMD
 #define CMD58 (58)         // READ_OCR
 
-// --- Internal State ---
+// --- Context Definition ---
 
-static volatile bool sd_initialized = false;
-static uint32_t sd_sector_count = 0;
-static uint8_t sd_card_type = 0; // 0:Unknown, 1:MMC, 2:v1, 4:v2, 8:Block
+typedef struct {
+  bool initialized;
+  uint8_t card_type; // 0:Unknown, 1:MMC, 2:v1, 4:v2, 8:Block
+  uint32_t sector_count;
+} meas_drv_sd_t;
+
+static meas_drv_sd_t sd_ctx;
 
 // --- Hardware Helper Functions ---
 
@@ -175,6 +158,24 @@ static void sd_spi_init(bool fast) {
   }
 
   // 8-bit Data (0111 = 7)
+  uint32_t cr2 = (SPI_CR2_DS_0 | SPI_CR2_DS_1 | SPI_CR2_DS_2) | SPI_CR2_FRXTH;
+
+  SD_SPI->CR1 = cr1;
+  SD_SPI->CR2 = cr2;
+  SD_SPI->CR1 |= SPI_CR1_SPE;
+}
+
+// Helper: Restore SPI Config for Data Transfer (8-bit, High Speed)
+// Must be called before any data transfer to recover from Shared Bus (LCD)
+// changes.
+static void sd_spi_config_fast(void) {
+  // Check if we need to reconfig? Just DO IT to be safe and atomic.
+  SD_SPI->CR1 &= ~SPI_CR1_SPE;
+
+  // Master, SSI, SSM, PCLK/4 (High Speed)
+  uint32_t cr1 = SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI | SPI_CR1_BR_0;
+
+  // 8-bit Data
   uint32_t cr2 = (SPI_CR2_DS_0 | SPI_CR2_DS_1 | SPI_CR2_DS_2) | SPI_CR2_FRXTH;
 
   SD_SPI->CR1 = cr1;
@@ -235,99 +236,20 @@ static uint8_t sd_send_cmd(uint8_t cmd, uint32_t arg) {
   return res;
 }
 
-// --- Public API Implementation ---
+// --- Public API Implementation (Internal but exposed via HAL) ---
 
-meas_sd_status_t meas_drv_sd_init(void) {
-  sd_initialized = false;
-  sd_card_type = 0;
-
-  RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-
-  GPIOB->MODER &= ~((3UL << (3 * 2)) | (3UL << (4 * 2)) | (3UL << (5 * 2)) |
-                    (3UL << (11 * 2)));
-  GPIOB->MODER |= ((2UL << (3 * 2)) | (2UL << (4 * 2)) | (2UL << (5 * 2)) |
-                   (1UL << (11 * 2)));
-
-  GPIOB->AFR[0] &= ~((0xFUL << 12) | (0xFUL << 16) | (0xFUL << 20));
-  GPIOB->AFR[0] |= ((5UL << 12) | (5UL << 16) | (5UL << 20));
-
-  sd_spi_init(false);
-  sd_deselect();
-
-  for (volatile int i = 0; i < 10000; i++)
-    ;
-
-  for (int i = 0; i < 10; i++)
-    sd_spi_transfer(0xFF);
-
-  // 4. Initialization
-  sd_select();
-  uint8_t n, cmd, ty, ocr[4];
-
-  // CDM0 Retry Loop as per reference recommendation
-  int i = 0;
-  bool cmd0_ok = false;
-  while (i++ < 10) {
-    if (sd_send_cmd(CMD0, 0) == 1) { // 1 = Idle State
-      cmd0_ok = true;
-      break;
-    }
-    sd_deselect();
-    for (volatile int d = 0; d < 10000; d++)
-      ; // ~10ms delay substitute
-    sd_select();
-  }
-
-  if (cmd0_ok) {
-    if (sd_send_cmd(CMD8, 0x1AA) == 1) {
-      for (n = 0; n < 4; n++)
-        ocr[n] = sd_spi_receive();
-      if (ocr[2] == 0x01 && ocr[3] == 0xAA) {
-        int retry = 10000;
-        while (retry-- && sd_send_cmd(ACMD41, 1UL << 30))
-          ;
-        if (retry && sd_send_cmd(CMD58, 0) == 0) {
-          for (n = 0; n < 4; n++)
-            ocr[n] = sd_spi_receive();
-          ty = (ocr[0] & 0x40) ? 12 : 4;
-        }
-      }
-    } else {
-      if (sd_send_cmd(ACMD41, 0) <= 1) {
-        ty = 2;
-        cmd = ACMD41;
-      } else {
-        ty = 1;
-        cmd = CMD1;
-      }
-      int retry = 10000;
-      while (retry-- && sd_send_cmd(cmd, 0))
-        ;
-      if (!retry || sd_send_cmd(CMD16, 512) != 0)
-        ty = 0;
-    }
-  }
-  sd_card_type = ty;
-  sd_deselect();
-
-  if (ty) {
-    sd_spi_init(true);
-    sd_initialized = true;
-    return MEAS_SD_OK;
-  }
-
-  return MEAS_SD_NO_INIT;
-}
-
-meas_sd_status_t meas_drv_sd_read_blocks(uint32_t sector, uint8_t *buffer,
-                                         uint32_t count) {
-  if (!sd_initialized)
+meas_sd_status_t meas_drv_sd_read_blocks(void *ctx, uint32_t sector,
+                                         uint8_t *buffer, uint32_t count) {
+  meas_drv_sd_t *sd = (meas_drv_sd_t *)ctx;
+  if (!sd || !sd->initialized)
     return MEAS_SD_NO_INIT;
-  if (!(sd_card_type & 8))
+  if (!(sd->card_type & 8))
     sector *= 512;
 
   sd_select();
+  // Restore proper SPI Config (Shared Bus Safety)
+  sd_spi_config_fast();
+
   if (count == 1) {
     if (sd_send_cmd(CMD17, sector) == 0) {
       uint8_t token;
@@ -375,15 +297,19 @@ meas_sd_status_t meas_drv_sd_read_blocks(uint32_t sector, uint8_t *buffer,
   return MEAS_SD_OK;
 }
 
-meas_sd_status_t meas_drv_sd_write_blocks(uint32_t sector,
+meas_sd_status_t meas_drv_sd_write_blocks(void *ctx, uint32_t sector,
                                           const uint8_t *buffer,
                                           uint32_t count) {
-  if (!sd_initialized)
+  meas_drv_sd_t *sd = (meas_drv_sd_t *)ctx;
+  if (!sd || !sd->initialized)
     return MEAS_SD_NO_INIT;
-  if (!(sd_card_type & 8))
+  if (!(sd->card_type & 8))
     sector *= 512;
 
   sd_select();
+  // Restore proper SPI Config (Shared Bus Safety)
+  sd_spi_config_fast();
+
   if (count == 1) {
     if (sd_send_cmd(CMD24, sector) == 0) {
       sd_spi_transfer(0xFF);
@@ -433,6 +359,133 @@ meas_sd_status_t meas_drv_sd_write_blocks(uint32_t sector,
   return MEAS_SD_OK;
 }
 
-uint32_t meas_drv_sd_get_sector_count(void) { return sd_sector_count; }
+uint32_t meas_drv_sd_get_sector_count(void) { return sd_ctx.sector_count; }
 
-int meas_drv_sd_is_initialized(void) { return sd_initialized; }
+int meas_drv_sd_is_initialized(void) { return sd_ctx.initialized; }
+
+// --- HAL Interface Wrappers ---
+
+static meas_status_t hal_sd_read(void *ctx, uint32_t sector, void *buffer,
+                                 uint32_t count) {
+  if (ctx != &sd_ctx)
+    return MEAS_ERROR;
+  meas_sd_status_t res =
+      meas_drv_sd_read_blocks(ctx, sector, (uint8_t *)buffer, count);
+  return (res == MEAS_SD_OK) ? MEAS_OK : MEAS_ERROR;
+}
+
+static meas_status_t hal_sd_write(void *ctx, uint32_t sector,
+                                  const void *buffer, uint32_t count) {
+  if (ctx != &sd_ctx)
+    return MEAS_ERROR;
+  meas_sd_status_t res =
+      meas_drv_sd_write_blocks(ctx, sector, (const uint8_t *)buffer, count);
+  return (res == MEAS_SD_OK) ? MEAS_OK : MEAS_ERROR;
+}
+
+static uint32_t hal_sd_get_capacity(void *ctx) {
+  if (ctx != &sd_ctx)
+    return 0;
+  return meas_drv_sd_get_sector_count();
+}
+
+static bool hal_sd_is_ready(void *ctx) {
+  if (ctx != &sd_ctx)
+    return false;
+  meas_drv_sd_t *sd = (meas_drv_sd_t *)ctx;
+  return sd->initialized;
+}
+
+static const meas_hal_storage_api_t sd_api = {
+    .read = hal_sd_read,
+    .write = hal_sd_write,
+    .get_capacity = hal_sd_get_capacity,
+    .is_ready = hal_sd_is_ready,
+};
+
+const meas_hal_storage_api_t *meas_drv_sd_get_api(void) { return &sd_api; }
+
+void *meas_drv_sd_init(void) {
+  // 1. GPIO Init
+  RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+
+  sd_ctx.initialized = false;
+  sd_ctx.card_type = 0;
+  sd_ctx.sector_count = 0;
+
+  GPIOB->MODER &= ~((3UL << (3 * 2)) | (3UL << (4 * 2)) | (3UL << (5 * 2)) |
+                    (3UL << (11 * 2)));
+  GPIOB->MODER |= ((2UL << (3 * 2)) | (2UL << (4 * 2)) | (2UL << (5 * 2)) |
+                   (1UL << (11 * 2)));
+
+  GPIOB->AFR[0] &= ~((0xFUL << 12) | (0xFUL << 16) | (0xFUL << 20));
+  GPIOB->AFR[0] |= ((5UL << 12) | (5UL << 16) | (5UL << 20));
+
+  sd_spi_init(false);
+  sd_deselect();
+
+  for (volatile int i = 0; i < 10000; i++)
+    ;
+
+  for (int i = 0; i < 10; i++)
+    sd_spi_transfer(0xFF);
+
+  // 4. Initialization
+  sd_select();
+  uint8_t n, cmd, ty, ocr[4];
+
+  // CDM0 Retry Loop
+  int i = 0;
+  bool cmd0_ok = false;
+  while (i++ < 10) {
+    if (sd_send_cmd(CMD0, 0) == 1) { // 1 = Idle State
+      cmd0_ok = true;
+      break;
+    }
+    sd_deselect();
+    for (volatile int d = 0; d < 10000; d++)
+      ; // ~10ms delay substitute
+    sd_select();
+  }
+
+  if (cmd0_ok) {
+    if (sd_send_cmd(CMD8, 0x1AA) == 1) {
+      for (n = 0; n < 4; n++)
+        ocr[n] = sd_spi_receive();
+      if (ocr[2] == 0x01 && ocr[3] == 0xAA) {
+        int retry = 10000;
+        while (retry-- && sd_send_cmd(ACMD41, 1UL << 30))
+          ;
+        if (retry && sd_send_cmd(CMD58, 0) == 0) {
+          for (n = 0; n < 4; n++)
+            ocr[n] = sd_spi_receive();
+          ty = (ocr[0] & 0x40) ? 12 : 4;
+        }
+      }
+    } else {
+      if (sd_send_cmd(ACMD41, 0) <= 1) {
+        ty = 2;
+        cmd = ACMD41;
+      } else {
+        ty = 1;
+        cmd = CMD1;
+      }
+      int retry = 10000;
+      while (retry-- && sd_send_cmd(cmd, 0))
+        ;
+      if (!retry || sd_send_cmd(CMD16, 512) != 0)
+        ty = 0;
+    }
+  }
+  sd_ctx.card_type = ty;
+  sd_deselect();
+
+  if (ty) {
+    sd_spi_init(true);
+    sd_ctx.initialized = true;
+    return &sd_ctx;
+  }
+
+  return NULL;
+}
