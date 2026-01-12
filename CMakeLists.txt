@@ -23,6 +23,7 @@ set(MEASLIB_CORE_SOURCES
     src/core/channel.c
     src/core/trace.c
     src/core/io.c
+    src/ui/colors.c
     src/ui/core.c
     src/ui/fonts/font_5x7.c
     src/ui/fonts/font_11x14.c
