@@ -127,7 +127,20 @@ else()
     )
 
     # 3. Library (with Real Board Support)
-    add_library(MeasLib STATIC ${MEASLIB_CORE_SOURCES} boards/${MEASLIB_TARGET}/board.c)
+    add_definitions(-DF303)
+    add_library(MeasLib STATIC 
+        ${MEASLIB_CORE_SOURCES} 
+        src/drivers/stm32f303/drv_adc.c
+        src/drivers/stm32f303/drv_synth.c
+        src/drivers/stm32f303/drv_controls.c
+        src/drivers/stm32f303/drv_lcd.c
+        src/drivers/stm32f303/drv_touch.c
+        src/drivers/stm32f303/drv_i2c.c
+        src/drivers/stm32f303/drv_watchdog.c
+        src/drivers/stm32f303/drv_flash.c
+        src/drivers/stm32f303/drv_usb_vcp.c
+        boards/${MEASLIB_TARGET}/board.c
+    )
     target_link_libraries(MeasLib PUBLIC m)
     
     target_include_directories(MeasLib PUBLIC 

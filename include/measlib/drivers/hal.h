@@ -44,4 +44,50 @@ typedef struct {
   meas_status_t (*set_path)(void *ctx, int path_id);
 } meas_hal_fe_api_t;
 
+/**
+ * @brief IO / Controls Interface
+ * LED, Buttons, etc.
+ */
+typedef struct {
+  meas_status_t (*set_led)(void *ctx, bool on);
+  uint32_t (*read_buttons)(void *ctx); // Returns bitmask
+} meas_hal_io_api_t;
+
+/**
+ * @brief Touch Screen Interface (Resistive/Capacitive)
+ */
+typedef struct {
+  // Returns raw point (adc values) or calibrated if driver handles it
+  meas_status_t (*read_point)(void *ctx, int16_t *x, int16_t *y);
+} meas_hal_touch_api_t;
+
+/**
+ * @brief Watchdog Interface
+ */
+typedef struct {
+  meas_status_t (*start)(void *ctx, uint32_t timeout_ms);
+  meas_status_t (*kick)(void *ctx);
+} meas_hal_wdg_api_t;
+
+/**
+ * @brief Flash Memory Interface
+ * For storing settings/calibrations.
+ */
+typedef struct {
+  meas_status_t (*unlock)(void *ctx);
+  meas_status_t (*lock)(void *ctx);
+  meas_status_t (*erase_page)(void *ctx, uint32_t address);
+  meas_status_t (*program)(void *ctx, uint32_t address, const void *data,
+                           size_t len);
+} meas_hal_flash_api_t;
+
+/**
+ * @brief Communication Link Interface (USB CDC / UART)
+ */
+typedef struct {
+  meas_status_t (*send)(void *ctx, const void *data, size_t len);
+  meas_status_t (*recv)(void *ctx, void *data, size_t len, size_t *read);
+  bool (*is_connected)(void *ctx);
+} meas_hal_link_api_t;
+
 #endif // MEASLIB_DRIVERS_HAL_H

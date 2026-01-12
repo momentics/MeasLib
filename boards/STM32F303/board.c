@@ -7,8 +7,21 @@
  *
  */
 
+#include "gpio_defaults.h"
 #include "measlib/drivers/api.h"
+#include "measlib/drivers/hal.h"
 #include <stdint.h>
+#include <string.h> // for memset
+
+// Driver Init Prototypes (implemented in src/drivers/stm32f303/)
+meas_hal_rx_api_t *meas_drv_adc_init(void);
+meas_hal_synth_api_t *meas_drv_synth_init(void);
+meas_hal_io_api_t *meas_drv_controls_init(void);
+void *meas_drv_lcd_init(void);
+meas_hal_touch_api_t *meas_drv_touch_init(void);
+meas_hal_wdg_api_t *meas_drv_wdg_init(void);
+meas_hal_flash_api_t *meas_drv_flash_init(void);
+meas_hal_link_api_t *meas_drv_usb_init(void);
 
 // -- Hardware Registers (Minimal Definitions) --
 
@@ -73,6 +86,44 @@ typedef struct {
 // FLASH ACR
 #define FLASH_ACR_LATENCY_2 (2U << 0)
 #define FLASH_ACR_PRFTBE (1U << 4)
+
+// Linker Symbols
+extern uint32_t _sccm;
+extern uint32_t _eccm;
+
+// GPIO Defs
+#define GPIOA_BASE 0x48000000UL
+#define GPIOB_BASE 0x48000400UL
+#define GPIOC_BASE 0x48000800UL
+#define GPIOD_BASE 0x48000C00UL
+#define GPIOE_BASE 0x48001000UL
+#define GPIOF_BASE 0x48001400UL
+
+typedef struct {
+  volatile uint32_t MODER;
+  volatile uint32_t OTYPER;
+  volatile uint32_t OSPEEDR;
+  volatile uint32_t PUPDR;
+  volatile uint32_t IDR;
+  volatile uint32_t ODR;
+  volatile uint32_t BSRR;
+  volatile uint32_t LCKR;
+  volatile uint32_t AFR[2];
+} GPIO_TypeDef;
+
+#define GPIOA ((GPIO_TypeDef *)GPIOA_BASE)
+#define GPIOB ((GPIO_TypeDef *)GPIOB_BASE)
+#define GPIOC ((GPIO_TypeDef *)GPIOC_BASE)
+#define GPIOD ((GPIO_TypeDef *)GPIOD_BASE)
+#define GPIOE ((GPIO_TypeDef *)GPIOE_BASE)
+#define GPIOF ((GPIO_TypeDef *)GPIOF_BASE)
+
+// RCC AHB
+#define RCC_AHBENR_GPIOAEN (1UL << 17)
+#define RCC_AHBENR_GPIOBEN (1UL << 18)
+#define RCC_AHBENR_GPIOCEN (1UL << 19)
+#define RCC_AHBENR_GPIODEN (1UL << 20)
+#define RCC_AHBENR_GPIOFEN (1UL << 22)
 
 // SysTick
 #define SysTick_BASE (0xE000E010UL)
@@ -180,15 +231,89 @@ void sys_tick_init(void) {
                   SysTick_CTRL_ENABLE_Msk;
 }
 
+static void ccm_ram_init(void) {
+  // Clear CCM RAM to zero
+  uint32_t *p = &_sccm;
+  while (p < &_eccm) {
+    *p++ = 0;
+  }
+}
+
+static void gpio_init_defaults(void) {
+  // 1. Enable Clocks for Ports A-F
+  RCC->AHBENR |= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN |
+                  RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOFEN);
+
+  // 2. Setup Defaults
+
+  // GPIOA
+  GPIOA->MODER = VAL_GPIOA_MODER;
+  GPIOA->OTYPER = VAL_GPIOA_OTYPER;
+  GPIOA->OSPEEDR = VAL_GPIOA_OSPEEDR;
+  GPIOA->PUPDR = VAL_GPIOA_PUPDR;
+  GPIOA->ODR = VAL_GPIOA_ODR;
+  GPIOA->AFR[0] = VAL_GPIOA_AFRL;
+  GPIOA->AFR[1] = VAL_GPIOA_AFRH;
+
+  // GPIOB
+  GPIOB->MODER = VAL_GPIOB_MODER;
+  GPIOB->OTYPER = VAL_GPIOB_OTYPER;
+  GPIOB->OSPEEDR = VAL_GPIOB_OSPEEDR;
+  GPIOB->PUPDR = VAL_GPIOB_PUPDR;
+  GPIOB->ODR = VAL_GPIOB_ODR;
+  GPIOB->AFR[0] = VAL_GPIOB_AFRL;
+  GPIOB->AFR[1] = VAL_GPIOB_AFRH;
+
+  // GPIOC
+  GPIOC->MODER = VAL_GPIOC_MODER;
+  GPIOC->OTYPER = VAL_GPIOC_OTYPER;
+  GPIOC->OSPEEDR = VAL_GPIOC_OSPEEDR;
+  GPIOC->PUPDR = VAL_GPIOC_PUPDR;
+  GPIOC->ODR = VAL_GPIOC_ODR;
+  GPIOC->AFR[0] = VAL_GPIOC_AFRL;
+  GPIOC->AFR[1] = VAL_GPIOC_AFRH;
+
+  // GPIOD
+  GPIOD->MODER = VAL_GPIOD_MODER;
+  GPIOD->OTYPER = VAL_GPIOD_OTYPER;
+  GPIOD->OSPEEDR = VAL_GPIOD_OSPEEDR;
+  GPIOD->PUPDR = VAL_GPIOD_PUPDR;
+  GPIOD->ODR = VAL_GPIOD_ODR;
+  GPIOD->AFR[0] = VAL_GPIOD_AFRL;
+  GPIOD->AFR[1] = VAL_GPIOD_AFRH;
+
+  // GPIOF
+  GPIOF->MODER = VAL_GPIOF_MODER;
+  GPIOF->OTYPER = VAL_GPIOF_OTYPER;
+  GPIOF->OSPEEDR = VAL_GPIOF_OSPEEDR;
+  GPIOF->PUPDR = VAL_GPIOF_PUPDR;
+  GPIOF->ODR = VAL_GPIOF_ODR;
+  GPIOF->AFR[0] = VAL_GPIOF_AFRL;
+  GPIOF->AFR[1] = VAL_GPIOF_AFRH;
+}
+
 /**
  * @brief System Initialization (Framework Hook)
  * Called from main loop to initialize platform drivers.
  */
 void sys_init(void) {
-  // 1. Initialize System Timer (1ms)
+  // For now, using default HSI (8MHz) or what Startup provides
+
+  ccm_ram_init();
+  gpio_init_defaults();
   sys_tick_init();
 
-  // 2. TODO: Initialize GPIOs, DMA, etc.
+  meas_drv_adc_init();
+  meas_drv_synth_init();
+  meas_drv_controls_init();
+  meas_drv_lcd_init();
+  meas_drv_touch_init();
+  meas_drv_wdg_init();
+  meas_drv_flash_init();
+  meas_drv_usb_init();
+
+  // 2. Event Loop Init
+  // meas_event_loop_init();
 }
 
 volatile uint32_t sys_tick_counter = 0;

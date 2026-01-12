@@ -118,9 +118,11 @@ SECTIONS
     .ccm (NOLOAD) :
     {
         . = ALIGN(4);
+        _sccm = .;
         *(.ccm)
         *(.ccm.*)
         . = ALIGN(4);
+        _eccm = .;
     } > CCMRAM
 
     /* Calibration Storage */
