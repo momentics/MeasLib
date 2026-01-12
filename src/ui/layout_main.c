@@ -15,8 +15,8 @@ static void step_draw_bg(const meas_ui_t *ui, meas_render_ctx_t *ctx,
                          const meas_render_api_t *api) {
   (void)ui;
   // Layer 0: Background
-  ctx->fg_color = 0x0000; // Black
-  api->fill_rect(ctx, 0, 0, 320, 240);
+  // Gradient: Deep Blue (Top) -> Black (Bottom)
+  api->fill_gradient_v(ctx, 0, 0, 320, 240, 0x0010, 0x0000);
 }
 
 static void step_draw_grid(const meas_ui_t *ui, meas_render_ctx_t *ctx,
@@ -45,6 +45,16 @@ static void step_draw_overlay(const meas_ui_t *ui, meas_render_ctx_t *ctx,
   // Draw the Red Test Box
   ctx->fg_color = 0xF800; // Red
   api->fill_rect(ctx, 100, 100, 120, 40);
+
+  // Demo: Yellow Triangle
+  meas_point_t triangle[] = {{160, 50}, {200, 90}, {120, 90}};
+  ctx->fg_color = 0xFFE0; // Yellow
+  api->fill_polygon(ctx, triangle, 3);
+
+  // Demo: Cyan Polyline
+  meas_point_t zigzag[] = {{10, 200}, {30, 180}, {50, 200}, {70, 180}};
+  ctx->fg_color = 0x07FF; // Cyan
+  api->draw_polyline(ctx, zigzag, 4);
 }
 
 // --- Pipeline Definition ---

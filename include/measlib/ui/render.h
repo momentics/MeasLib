@@ -21,6 +21,14 @@
 typedef uint16_t meas_pixel_t;
 
 /**
+ * @brief Point
+ */
+typedef struct {
+  int16_t x;
+  int16_t y;
+} meas_point_t;
+
+/**
  * @brief Render Context
  * Describes the target buffer or clipping region for drawing operations.
  * Important for Tile Rendering strategies.
@@ -42,12 +50,22 @@ typedef struct {
   void (*draw_pixel)(meas_render_ctx_t *ctx, int16_t x, int16_t y);
   void (*draw_line)(meas_render_ctx_t *ctx, int16_t x0, int16_t y0, int16_t x1,
                     int16_t y1);
+  void (*draw_polyline)(meas_render_ctx_t *ctx, const meas_point_t *points,
+                        uint16_t count);
   void (*fill_rect)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
                     int16_t h);
+  void (*fill_polygon)(meas_render_ctx_t *ctx, const meas_point_t *points,
+                       uint16_t count);
   void (*blit)(meas_render_ctx_t *ctx, int16_t x, int16_t y, int16_t w,
                int16_t h, const void *img);
   void (*draw_text)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                     const char *text);
+  void (*fill_gradient_v)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                          int16_t w, int16_t h, meas_pixel_t c1,
+                          meas_pixel_t c2);
+  void (*fill_gradient_h)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
+                          int16_t w, int16_t h, meas_pixel_t c1,
+                          meas_pixel_t c2);
   void (*get_dims)(meas_render_ctx_t *ctx, int16_t *w, int16_t *h);
 } meas_render_api_t;
 
