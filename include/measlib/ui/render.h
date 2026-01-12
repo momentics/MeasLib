@@ -132,6 +132,8 @@ typedef struct {
   void (*draw_line_patt)(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
                          int16_t x1, int16_t y1, uint8_t pattern,
                          uint8_t alpha);
+  void (*draw_line_thick)(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                          int16_t x1, int16_t y1, uint8_t width, uint8_t alpha);
 
   // Stack Clipping API
   void (*push_clip_rect)(meas_render_ctx_t *ctx, meas_rect_t rect);
@@ -139,6 +141,9 @@ typedef struct {
 
   // Triangle API
   void (*fill_triangle)(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                        int16_t x1, int16_t y1, int16_t x2, int16_t y2,
+                        uint8_t alpha);
+  void (*draw_triangle)(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
                         int16_t x1, int16_t y1, int16_t x2, int16_t y2,
                         uint8_t alpha);
 

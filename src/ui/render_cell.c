@@ -1387,6 +1387,49 @@ static void cell_fill_pie(meas_render_ctx_t *ctx, int16_t x, int16_t y,
   }
 }
 
+// --- Extended Shapes ---
+
+static void cell_draw_line_thick(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                                 int16_t x1, int16_t y1, uint8_t width,
+                                 uint8_t alpha) {
+  if (width <= 1) {
+    cell_draw_line(ctx, x0, y0, x1, y1, alpha);
+    return;
+  }
+
+  // Calculate perpendicular vector
+  float dx = (float)(x1 - x0);
+  float dy = (float)(y1 - y0);
+  float len = meas_math_sqrt(dx * dx + dy * dy);
+
+  if (len == 0.0f)
+    return; // Zero length line
+
+  float ux = -dy / len;
+  float uy = dx / len;
+
+  float half_w = (float)width / 2.0f;
+  float off_x = ux * half_w;
+  float off_y = uy * half_w;
+
+  // 4 corners of the thick line rectangle
+  meas_point_t points[4];
+  points[0] = (meas_point_t){(int16_t)(x0 + off_x), (int16_t)(y0 + off_y)};
+  points[1] = (meas_point_t){(int16_t)(x1 + off_x), (int16_t)(y1 + off_y)};
+  points[2] = (meas_point_t){(int16_t)(x1 - off_x), (int16_t)(y1 - off_y)};
+  points[3] = (meas_point_t){(int16_t)(x0 - off_x), (int16_t)(y0 - off_y)};
+
+  cell_fill_polygon(ctx, points, 4, alpha);
+}
+
+static void cell_draw_triangle(meas_render_ctx_t *ctx, int16_t x0, int16_t y0,
+                               int16_t x1, int16_t y1, int16_t x2, int16_t y2,
+                               uint8_t alpha) {
+  cell_draw_line(ctx, x0, y0, x1, y1, alpha);
+  cell_draw_line(ctx, x1, y1, x2, y2, alpha);
+  cell_draw_line(ctx, x2, y2, x0, y0, alpha);
+}
+
 const meas_render_api_t meas_render_cell_api = {
     .draw_pixel = cell_draw_pixel,
     .get_pixel = cell_get_pixel,
@@ -1411,8 +1454,10 @@ const meas_render_api_t meas_render_cell_api = {
     .invert_rect = cell_invert_rect,
     .get_clip_rect = cell_get_clip_rect,
     .draw_line_patt = cell_draw_line_patt,
+    .draw_line_thick = cell_draw_line_thick,
     .push_clip_rect = cell_push_clip_rect,
     .pop_clip_rect = cell_pop_clip_rect,
     .fill_triangle = cell_fill_triangle,
+    .draw_triangle = cell_draw_triangle,
     .draw_arc = cell_draw_arc,
     .fill_pie = cell_fill_pie};
