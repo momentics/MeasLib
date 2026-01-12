@@ -25,6 +25,8 @@ set(MEASLIB_CORE_SOURCES
     src/core/io.c
     src/ui/core.c
     src/ui/input.c
+    src/ui/layout_main.c
+    src/ui/render_cell.c
     src/utils/math.c
     src/dsp/dsp.c
     src/dsp/analysis.c
