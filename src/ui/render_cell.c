@@ -641,6 +641,184 @@ static void cell_fill_polygon(meas_render_ctx_t *ctx,
   }
 }
 
+// --- Round Rect Primitives ---
+
+static void cell_draw_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
+                                 int16_t r, uint8_t alpha) {
+  int16_t x = rect.x;
+  int16_t y = rect.y;
+  int16_t w = rect.w;
+  int16_t h = rect.h;
+
+  // Clamp radius
+  int16_t min_side = (w < h) ? w : h;
+  if (r > min_side / 2)
+    r = min_side / 2;
+  if (r < 0)
+    r = 0;
+
+  if (r == 0) {
+    cell_draw_rect(ctx, rect, alpha);
+    return;
+  }
+
+  // Draw 4 Sides
+  // Top
+  cell_draw_line(ctx, x + r, y, x + w - r - 1, y, alpha);
+  // Bottom
+  cell_draw_line(ctx, x + r, y + h - 1, x + w - r - 1, y + h - 1, alpha);
+  // Left
+  cell_draw_line(ctx, x, y + r, x, y + h - r - 1, alpha);
+  // Right
+  cell_draw_line(ctx, x + w - 1, y + r, x + w - 1, y + h - r - 1, alpha);
+
+  // Draw 4 Corners
+  int16_t f = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = -2 * r;
+  int16_t cx = 0;
+  int16_t cy = r;
+
+  // Centers of corners
+  int16_t xtl = x + r;
+  int16_t ytl = y + r;
+  int16_t xtr = x + w - 1 - r;
+  int16_t ytr = y + r;
+  int16_t xbl = x + r;
+  int16_t ybl = y + h - 1 - r;
+  int16_t xbr = x + w - 1 - r;
+  int16_t ybr = y + h - 1 - r;
+
+  while (cx < cy) {
+    if (f >= 0) {
+      cy--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    cx++;
+    ddF_x += 2;
+    f += ddF_x;
+
+    // Top Left (Q2)
+    cell_draw_pixel(ctx, xtl - cx, ytl - cy, alpha);
+    cell_draw_pixel(ctx, xtl - cy, ytl - cx, alpha);
+
+    // Top Right (Q1)
+    cell_draw_pixel(ctx, xtr + cx, ytr - cy, alpha);
+    cell_draw_pixel(ctx, xtr + cy, ytr - cx, alpha);
+
+    // Bottom Left (Q3)
+    cell_draw_pixel(ctx, xbl - cx, ybl + cy, alpha);
+    cell_draw_pixel(ctx, xbl - cy, ybl + cx, alpha);
+
+    // Bottom Right (Q4)
+    cell_draw_pixel(ctx, xbr + cx, ybr + cy, alpha);
+    cell_draw_pixel(ctx, xbr + cy, ybr + cx, alpha);
+  }
+
+  // Handle Diagonals (floating point to int artifact in Bresenham logic)
+  if (cx == cy) {
+    cell_draw_pixel(ctx, xtl - cx, ytl - cy, alpha);
+    cell_draw_pixel(ctx, xtr + cx, ytr - cy, alpha);
+    cell_draw_pixel(ctx, xbl - cx, ybl + cy, alpha);
+    cell_draw_pixel(ctx, xbr + cx, ybr + cy, alpha);
+  }
+}
+
+static void cell_fill_round_rect(meas_render_ctx_t *ctx, meas_rect_t rect,
+                                 int16_t r, uint8_t alpha) {
+  int16_t x = rect.x;
+  int16_t y = rect.y;
+  int16_t w = rect.w;
+  int16_t h = rect.h;
+
+  // Clamp radius
+  int16_t min_side = (w < h) ? w : h;
+  if (r > min_side / 2)
+    r = min_side / 2;
+  if (r < 0)
+    r = 0;
+
+  if (r == 0) {
+    cell_fill_rect(ctx, x, y, w, h, alpha);
+    return;
+  }
+
+  // 1. Fill Central Body
+  // From y+r to y+h-r-1 (Inclusive height is h - 2r)
+  cell_fill_rect(ctx, x, y + r, w, h - 2 * r, alpha);
+
+  // 2. Fill Top/Bottom Strips + Corners using Bresenham
+  int16_t f = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = -2 * r;
+  int16_t cx = 0;
+  int16_t cy = r;
+
+  // Centers
+  int16_t xtl = x + r;
+  int16_t ytl = y + r;
+  int16_t xtr = x + w - 1 - r;
+  int16_t ybl = y + h - 1 - r;
+
+  // Draw helper for scanlines
+  // We need to fill for each Y step.
+  // The standard bresenham iterates `cx` (x offset) and `cy` (y offset).
+  // We mirror for top and bottom.
+
+  // Initial strip at offset `r` (should be covered by central body if exact,
+  // but let's effectively do rows `ytl - cy` and `ybl + cy`
+  // as cy goes from r down to 0... wait bresenham goes 0 to r?
+  // cx goes 0..~0.7r. cy goes r..~0.7r.
+
+  // We need to cover all Y offsets from 1 to `r`.
+  // Standard "Fill Circle" approach iterates Y.
+
+  int16_t current_y = r;
+  int16_t current_x = 0;
+  int16_t d = 3 - 2 * r;
+
+  while (current_y >= current_x) {
+    // Scanline 1: Offset Y = current_y
+    // Rows: ytl - current_y AND ybl + current_y
+    // Width span: from (xtl - current_x) to (xtr + current_x)
+    // Note: xtr is `x + w - 1 - r`.
+    // Span width = (xtr + current_x) - (xtl - current_x) + 1
+    //            = (x + w - 1 - r + x) - (x + r - x) + 1
+    //            = w - 2r + 2x - 1 + 1 = w - 2r + 2x
+    // Wait, let's use calc:
+    // Start X = xtl - current_x
+    // Width = (xtr + current_x) - (xtl - current_x) + 1
+
+    int16_t span_w_narrow = (xtr + current_x) - (xtl - current_x) + 1;
+    int16_t span_w_wide = (xtr + current_y) - (xtl - current_y) + 1;
+
+    // Top Bounds
+    // Row (ytl - current_y): Wide Span
+    if (current_x > 0) { // Avoid overlapping central rect (offset 0)
+      cell_fill_rect(ctx, xtl - current_y, ytl - current_x, span_w_wide, 1,
+                     alpha);
+      cell_fill_rect(ctx, xtl - current_y, ybl + current_x, span_w_wide, 1,
+                     alpha);
+    }
+
+    if (current_x != current_y) {
+      cell_fill_rect(ctx, xtl - current_x, ytl - current_y, span_w_narrow, 1,
+                     alpha);
+      cell_fill_rect(ctx, xtl - current_x, ybl + current_y, span_w_narrow, 1,
+                     alpha);
+    }
+
+    current_x++;
+    if (d > 0) {
+      current_y--;
+      d = d + 4 * (current_x - current_y) + 10;
+    } else {
+      d = d + 4 * current_x + 6;
+    }
+  }
+}
+
 // --- API Definition ---
 
 const meas_render_api_t meas_render_cell_api = {
@@ -658,4 +836,6 @@ const meas_render_api_t meas_render_cell_api = {
     .set_clip_rect = cell_set_clip_rect,
     .draw_rect = cell_draw_rect,
     .draw_circle = cell_draw_circle,
-    .fill_circle = cell_fill_circle};
+    .fill_circle = cell_fill_circle,
+    .draw_round_rect = cell_draw_round_rect,
+    .fill_round_rect = cell_fill_round_rect};

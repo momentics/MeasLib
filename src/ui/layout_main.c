@@ -60,6 +60,13 @@ static void step_draw_overlay(const meas_ui_t *ui, meas_render_ctx_t *ctx,
   ctx->fg_color = 0x001F; // Blue
   // Draw over the Red Box to test blending (Purple-ish result expected)
   api->fill_rect(ctx, 110, 110, 50, 50, MEAS_ALPHA_50);
+
+  // Demo: Rounded Rect
+  meas_rect_t rr = {220, 20, 80, 50};
+  ctx->fg_color = 0xF81F; // Magenta
+  api->fill_round_rect(ctx, rr, 10, MEAS_ALPHA_OPAQUE);
+  ctx->fg_color = 0xFFFF; // White
+  api->draw_round_rect(ctx, rr, 10, MEAS_ALPHA_OPAQUE);
 }
 
 // --- Pipeline Definition ---

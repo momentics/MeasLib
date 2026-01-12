@@ -76,6 +76,10 @@ typedef struct {
                       int16_t radius, uint8_t alpha);
   void (*fill_circle)(meas_render_ctx_t *ctx, int16_t x, int16_t y,
                       int16_t radius, uint8_t alpha);
+  void (*draw_round_rect)(meas_render_ctx_t *ctx, meas_rect_t rect, int16_t r,
+                          uint8_t alpha);
+  void (*fill_round_rect)(meas_render_ctx_t *ctx, meas_rect_t rect, int16_t r,
+                          uint8_t alpha);
 } meas_render_api_t;
 
 #endif // MEASLIB_UI_RENDER_H
