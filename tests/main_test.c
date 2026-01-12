@@ -17,17 +17,24 @@ void run_fast_math_tests(void); // New
 void run_fft_tests(void);
 void run_event_tests(void);
 void run_vna_pipeline_tests(void);
+void run_core_object_tests(void);
+void run_core_trace_tests(void);
+void run_node_window_tests(void);
 
 int main(void) {
   printf("======================================\n");
   printf("   MeasLib Host Test Suite\n");
   printf("======================================\n");
 
-  run_vna_sanity_tests();
   run_math_tests();
-  run_fast_math_tests(); // New
+  run_fast_math_tests();
   run_fft_tests();
+
   run_event_tests();
+  run_core_object_tests();
+  run_core_trace_tests();
+  run_node_window_tests();
+  run_vna_sanity_tests();
   run_vna_pipeline_tests();
 
   printf("\nAll Tests Passed Successfully.\n");

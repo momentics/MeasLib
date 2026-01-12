@@ -71,7 +71,10 @@ if(MEASLIB_BUILD_TESTS)
         tests/src/utils/test_math.c
         tests/src/utils/test_fast_math.c
         tests/src/dsp/test_fft.c
-        tests/src/core/test_events.c
+        tests/src/core/test_core_object.c
+    tests/src/core/test_core_trace.c
+    tests/src/dsp/nodes/test_node_window.c
+    tests/src/core/test_events.c
     )
     target_link_libraries(MeasLib_Test_Runner PRIVATE MeasLib)
     target_include_directories(MeasLib_Test_Runner PRIVATE tests/framework)

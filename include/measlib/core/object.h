@@ -70,4 +70,38 @@ struct meas_object_s {
   uint32_t ref_count; /**< Reference Counter for lifecycle management */
 };
 
+// --- Public API Wrappers ---
+
+/**
+ * @brief Get the object name via VTable.
+ */
+const char *meas_object_get_name(meas_object_t *obj);
+
+/**
+ * @brief Set a property via VTable.
+ */
+meas_status_t meas_object_set_prop(meas_object_t *obj, meas_id_t key,
+                                   meas_variant_t val);
+
+/**
+ * @brief Get a property via VTable.
+ */
+meas_status_t meas_object_get_prop(meas_object_t *obj, meas_id_t key,
+                                   meas_variant_t *val);
+
+/**
+ * @brief Increase reference count.
+ */
+meas_object_t *meas_object_ref(meas_object_t *obj);
+
+/**
+ * @brief Decrease reference count and destroy if zero.
+ */
+void meas_object_unref(meas_object_t *obj);
+
+/**
+ * @brief Destroy the object immediately (Internal or manual use).
+ */
+void meas_object_destroy(meas_object_t *obj);
+
 #endif // MEASLIB_CORE_OBJECT_H

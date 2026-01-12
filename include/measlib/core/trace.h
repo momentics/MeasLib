@@ -69,6 +69,12 @@ typedef struct {
 } meas_trace_api_t;
 
 /**
+ * @brief Helper: Get data pointer from trace.
+ */
+meas_status_t meas_trace_get_data(meas_trace_t *t, const meas_real_t **x,
+                                  const meas_real_t **y, size_t *count);
+
+/**
  * @brief Helper: Copy data into trace.
  */
 meas_status_t meas_trace_copy_data(meas_trace_t *t, const void *data,

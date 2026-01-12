@@ -57,6 +57,15 @@
     printf("PASS\n");                                                          \
   } while (0)
 
+#define TEST_ASSERT_EQUAL_STRING(expected, actual)                             \
+  do {                                                                         \
+    if (strcmp((expected), (actual)) != 0) {                                   \
+      printf("FAIL: %s:%d: Expected '%s', got '%s'.\n", __FILE__, __LINE__,    \
+             (expected), (actual));                                            \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
+
 #define TEST_FAIL_MESSAGE(msg)                                                 \
   do {                                                                         \
     printf("FAIL: %s:%d: %s\n", __FILE__, __LINE__, msg);                      \

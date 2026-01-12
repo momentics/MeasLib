@@ -38,3 +38,21 @@ void meas_object_destroy(meas_object_t *obj) {
     obj->api->destroy(obj);
   }
 }
+
+meas_object_t *meas_object_ref(meas_object_t *obj) {
+  if (obj) {
+    obj->ref_count++;
+  }
+  return obj;
+}
+
+void meas_object_unref(meas_object_t *obj) {
+  if (obj) {
+    if (obj->ref_count > 0) {
+      obj->ref_count--;
+      if (obj->ref_count == 0) {
+        meas_object_destroy(obj);
+      }
+    }
+  }
+}
