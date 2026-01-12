@@ -15,6 +15,10 @@
 #include "measlib/core/event.h"
 #include "measlib/drivers/api.h"
 #include "measlib/dsp/dsp.h"
+#include "measlib/sys/input_service.h"
+#include "measlib/sys/render_service.h"
+#include "measlib/sys/shell_service.h"
+#include "measlib/sys/touch_service.h"
 #include "measlib/ui/core.h"
 
 // -- Global Singletons (Statically Allocated) --
@@ -44,6 +48,11 @@ int main(void) {
     // 2.1 Dispatch Events (High Priority)
     // Processes the queue populated by ISRs (Touch, USB, DMA)
     meas_dispatch_events();
+
+    // Poll Input Service
+    meas_input_service_poll();
+    meas_touch_service_poll();
+    meas_shell_service_poll();
 
     // 2.2 Component Ticks (Cooperative Tasks)
     // Each function must execute < 100us to maintain UI responsiveness

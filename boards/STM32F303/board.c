@@ -13,6 +13,9 @@
 #include "gpio_defaults.h"
 #include "measlib/drivers/api.h"
 #include "measlib/drivers/hal.h"
+#include "measlib/sys/input_service.h"
+#include "measlib/sys/shell_service.h"
+#include "measlib/sys/touch_service.h"
 #include <stdint.h>
 #include <string.h> // for memset
 
@@ -307,8 +310,12 @@ void sys_init(void) {
 
   meas_drv_adc_init();
   meas_drv_synth_init();
-  meas_drv_controls_init();
-  meas_drv_touch_init();
+  meas_hal_io_api_t *io = meas_drv_controls_init();
+  meas_input_service_init(io, NULL);
+
+  void *touch_ctx = meas_drv_touch_init();
+  meas_touch_service_init(meas_drv_touch_get_api(), touch_ctx);
+
   meas_drv_wdg_init();
   meas_drv_flash_init();
   meas_drv_usb_init(); // Restored USB Init

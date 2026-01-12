@@ -41,6 +41,10 @@ set(MEASLIB_CORE_SOURCES
     src/modules/vna/channel.c
     src/modules/dmm/channel.c
     src/drivers/registry.c
+    src/sys/input_service.c
+    src/sys/render_service.c
+    src/sys/shell_service.c
+    src/sys/touch_service.c
 )
 
 # ==============================================================================

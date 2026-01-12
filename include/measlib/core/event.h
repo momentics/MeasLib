@@ -22,7 +22,9 @@ typedef enum {
   EVENT_PROP_CHANGED,  /**< A property value has changed */
   EVENT_DATA_READY,    /**< New measurement data is available */
   EVENT_STATE_CHANGED, /**< Operational state (e.g. Idle->Sweep) changed */
-  EVENT_ERROR          /**< An error condition occurred */
+  EVENT_ERROR,         /**< An error condition occurred */
+  EVENT_INPUT_KEY,     /**< Physical Button Press */
+  EVENT_INPUT_TOUCH    /**< Touch Screen Event */
 } meas_event_type_t;
 
 /**
