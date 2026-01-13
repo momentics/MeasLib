@@ -22,6 +22,16 @@ The system architecture is strictly divided into two logical planes to ensure de
 * **No Allocation**: All data paths use static/shared memory.
 * **Files**: `data.h`, `trace.h`, `render.h` (UI).
 
+### 3. System Services (Background Tasks)
+
+* **Bridge**: Connects Hardware Events to Application Logic.
+* **Services**:
+  * `input_service`: Polling buttons/encoders.
+  * `touch_service`: Touchscreen coordinate mapping and gesture detection.
+  * `render_service`: Consumes UI dirty map and pushes pixels to LCD.
+  * `shell_service`: SCPI-like command interface over USB/VCP.
+* **Files**: `measlib/sys/*.h`
+
 ## Project Structure
 
 ```text
@@ -52,45 +62,77 @@ MeasLib/
 │   │   │   └── storage.h       # Filesystem
 │   │   ├── modules/            # Instrument Domains
 │   │   │   ├── vna/            # Vector Network Analyzer
-│   │   │   │   ├── channel.h
-│   │   │   │   ├── trace.h
-│   │   │   │   └── cal.h       # SOLT Calibration
 │   │   │   ├── sa/             # Spectrum Analyzer
-│   │   │   │   └── trace.h     # Power Spectrum
 │   │   │   ├── gen/            # Signal Generator
-│   │   │   │   └── channel.h   # CW/Modulation
 │   │   │   └── dmm/            # Multimeter
-│   │   │       └── cal.h       # Linear Correction
 │   │   ├── ui/                 # Generic UI System
-│   │   │   ├── core.h
-│   │   │   ├── input.h         # Touch Cal & Events
-│   │   │   ├── render.h
+│   │   │   ├── core.h          # UI Core & Ticking
+│   │   │   ├── render.h        # Drawing Backend API
+│   │   │   ├── input.h         # Input Types & Calibration
+│   │   │   ├── colors.h        # Theme Definitions
+│   │   │   ├── fonts.h         # Font Assets
 │   │   │   ├── menu.h          # Menu System
 │   │   │   └── components/     # Reusable Widgets
+│   │   ├── sys/                # System Services
+│   │   │   ├── input_service.h # Button/Encoder Polling
+│   │   │   ├── touch_service.h # Touch Processing
+│   │   │   ├── shell_service.h # Command Line Interface
+│   │   │   └── render_service.h# Display Refresh Manager
 │   │   └── drivers/            # Abstract Hardware Interfaces
-│   │       └── hal.h
+│   │       └── api.h           # Driver Registry API
 ├── src/
-│   ├── main.c                  # Entry Point
+│   ├── main.c                  # Entry Point & Superloop
 │   ├── core/
+│   │   ├── object.c            # Object System Implementation
+│   │   ├── event.c             # Event Dispatcher
+│   │   ├── device.c            # Device Facade
+│   │   ├── channel.c           # Channel Manager
+│   │   ├── trace.c             # Trace Types
+│   │   └── io.c                # IO Streams
 │   ├── drivers/
+│   │   ├── registry.c          # Driver Registration Logic
+│   │   └── stm32f303/          # Reference Target Implementation
+│   │       ├── drv_adc.c       # ADC Driver
+│   │       ├── drv_controls.c  # GPIO/Rotary
+│   │       ├── drv_flash.c     # Internal Flash Access
+│   │       ├── drv_i2c.c       # I2C Bus Driver
+│   │       ├── drv_lcd.c       # LCD Interface
+│   │       ├── drv_sd.c        # SD Card SPI
+│   │       ├── drv_synth.c     # Frequency Synthesizer
+│   │       ├── drv_touch.c     # Touch Controller
+│   │       ├── drv_usb_vcp.c   # USB Serial (VCP)
+│   │       └── drv_watchdog.c  # Independent Watchdog
 │   ├── dsp/
-│   │   ├── dsp.c           # Core DSP (Mixing, FFT)
-│   │   ├── nodes/          # Processing Nodes Implementation
-│   │   │   ├── node_gain.c     # Gain, Linear, Offset
-│   │   │   ├── node_math.c     # Mag, Phase, LogMag, GroupDelay, Avg
-│   │   │   ├── node_spectral.c # FFT, Windowing
-│   │   │   ├── node_source.c   # WaveGen (Sine, Square)
-│   │   │   ├── node_radio.c    # DDC, S-Param
-│   │   │   ├── node_sink.c     # Trace Sink
-│   │   │   └── node_calibration.c # Vector Error Correction
-│   │   └── analysis.c      # High-level Logic
+│   │   ├── dsp.c               # Core DSP functions
+│   │   ├── chain.c             # Node Processing Pipeline
+│   │   ├── analysis.c          # Higher Level Analysis
+│   │   └── nodes/              # Individual DSP Nodes
+│   │       ├── node_gain.c     # Gain/Offset/Linear
+│   │       ├── node_math.c     # Mag/Phase/Avg/GroupDelay
+│   │       ├── node_spectral.c # FFT/Window
+│   │       ├── node_source.c   # Signal Generation
+│   │       ├── node_radio.c    # DDC/Downconversion
+│   │       ├── node_sink.c     # Data Sinks
+│   │       └── node_calibration.c # Vector Error Correction
 │   ├── modules/                # Domain Logic Implementation
 │   │   ├── vna/
 │   │   ├── sa/
 │   │   ├── gen/
 │   │   └── dmm/
+│   ├── sys/                    # Service Implementations
+│   │   ├── input_service.c
+│   │   ├── render_service.c
+│   │   ├── shell_service.c
+│   │   └── touch_service.c
 │   ├── ui/
+│   │   ├── core.c              # UI Lifecycle
+│   │   ├── render_cell.c       # Tile-based Renderer
+│   │   ├── layout_main.c       # Main Screen Layout
+│   │   ├── colors.c            # Color Palette
+│   │   ├── components/         # Widget implementations
+│   │   └── fonts/              # Font Data
 │   └── utils/
+│       └── math.c
 └── tests/              # Host-based Test Suite
     ├── mocks/          # Simulated hardware drivers
     └── src/            # Unit/Integration tests
@@ -116,6 +158,13 @@ The framework is designed to run in environments **without dynamic memory alloca
 * **Caller-Owned**: The framework never allocates data buffers internally.
 * **Shared Memory**: Channels operate on buffers provided by the application via properties (e.g., `MEAS_PROP_VNA_BUFFER_PTR`).
 * **Zero-Copy**: Data pointers are passed through the system without copying (or via Event Payload).
+
+### 1.3 Build System (CMake)
+
+The project uses CMake (3.16+) with support for multiple targets:
+
+* **MEASLIB_TARGET**: `STM32F303`, `STM32F072`, `AT32F403`.
+* **MEASLIB_BUILD_TESTS**: Build for Linux Host (Unit Tests).
 
 ## 2. Generic Object Model
 
@@ -257,6 +306,16 @@ typedef struct {
 meas_status_t meas_driver_register(const meas_driver_desc_t* desc);
 ```
 
+### 3.4 Implemented Drivers
+
+In `src/drivers/stm32f303/`, the following drivers are implemented:
+
+* `drv_adc.c`: Internal ADC driver.
+* `drv_synth.c`: Frequency synthesizer control.
+* `drv_lcd.c`, `drv_touch.c`: Display and Touch Input.
+* `drv_usb_vcp.c`: Virtual COM Port for CLI.
+* `drv_flash.c`: Internal Flash storage.
+
 ## 4. Core Domain Entities
 
 ### 4.1 Measurement Channel (`meas_channel_t`)
@@ -347,6 +406,11 @@ typedef void (*meas_event_cb_t)(const meas_event_t* event, void* user_data);
 meas_status_t meas_subscribe(meas_object_t* pub, meas_event_cb_t cb, void* ctx);
 ```
 
+**Constraints**:
+
+* `MAX_SUBSCRIBERS` (32): Fixed static array.
+* `MAX_EVENT_QUEUE` (16): Fixed ring buffer for pending events.
+
 ### 5.2 Generic Data Block (Zero-Copy)
 
 Used for high-throughput data transfer (e.g., ADC data to Processing Chain).
@@ -405,11 +469,12 @@ typedef struct {
 ### 6.2 Font System
 
 Fonts are defined as `meas_font_t` structures (in `measlib/ui/fonts.h`).
+
 * **5x7**: Standard system font.
 * **11x14**: Large readable font.
 * Fonts are distinct zero-copy resources commonly stored in Flash.
 
-### 6.2 UI Controller (`meas_ui_t`)
+### 6.3 UI Controller (`meas_ui_t`)
 
 The central object creating the graphical interface. It subscribes to Device/channel events to trigger redraws.
 
@@ -446,7 +511,7 @@ typedef struct {
 } meas_ui_api_t;
 ```
 
-### 6.3 Rendering Pipeline
+### 6.4 Rendering Pipeline
 
 The UI uses a **Stage-Based Pipeline** to strictly order drawing operations. This allows optimization (e.g. skipping "Traces" if the channel is idle).
 
@@ -467,7 +532,7 @@ typedef struct {
 } meas_render_step_t;
 ```
 
-### 6.4 Input & Interaction
+### 6.5 Input & Interaction
 
 Input is handled via a unified event system affecting the **Focus Model**.
 
@@ -488,7 +553,7 @@ typedef struct {
 } meas_input_event_t;
 ```
 
-### 6.5 Menu System (Static Composition)
+### 6.6 Menu System (Static Composition)
 
 Menus are defined as static constant arrays of `meas_menu_item_t` to save RAM.
 
@@ -666,24 +731,36 @@ The architecture uses a **Cooperative Superloop** combined with **Event-Driven F
 The logical core of the firmware (`main.c`) is a non-blocking loop dispatching events and ticking state machines.
 
 ```c
-void main(void) {
-    sys_init(); // Setup HW transformers
-    
-    while(1) {
-        // 1. Dispatch Events (High Priority)
-        // Processes the queue populated by ISRs (Touch, USB, DMA)
-        meas_dispatch_events();
-        
-        // 2. Component Ticks (Cooperative Tasks)
-        // Each function must execute < 100us to maintain UI responsiveness
-        meas_device_tick(device);       // Manage HW state machines
-        meas_channel_tick(active_ch);   // Manage Sweep FSM
-        meas_ui_tick(ui);               // Animations & Input Debounce
-        
-        // 3. Power Management
-        // Wait for next Interrupt (WFI) if idle
-        sys_wait_for_interrupt();
-    }
+int main(void) {
+  // 1. Hardware Initialization
+  sys_init();
+  meas_dsp_tables_init();
+
+  // 2. Main Superloop
+  while (1) {
+    // 2.1 Dispatch Events (High Priority)
+    // Processes the queue populated by ISRs (Touch, USB, DMA)
+    meas_dispatch_events();
+
+    // Poll Input Service
+    meas_input_service_poll();
+    meas_touch_service_poll();
+    meas_shell_service_poll();
+
+    // 2.2 Component Ticks (Cooperative Tasks)
+    // Each function must execute < 100us to maintain UI responsiveness
+    if (device)
+      meas_device_tick(device);
+    if (active_ch)
+      meas_channel_tick(active_ch);
+    if (ui)
+      meas_ui_tick(ui);
+
+    // 2.3 Power Management
+    // Wait for next Interrupt (WFI) if idle
+    sys_wait_for_interrupt();
+  }
+  return 0;
 }
 ```
 
