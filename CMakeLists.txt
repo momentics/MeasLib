@@ -1,14 +1,30 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Project Definition
-project(MeasLib VERSION 0.1 LANGUAGES C ASM)
-
-# Options
+# Options (Defined before project to allow toolchain configuration)
 option(MEASLIB_BUILD_TESTS "Build Host Tests (Linux)" OFF)
 set(MEASLIB_TARGET "STM32F303" CACHE STRING "Target MCU: STM32F072, STM32F303 or AT32F403")
 
+# Toolchain Configuration for Embedded Targets
+if(NOT MEASLIB_BUILD_TESTS)
+    set(CMAKE_SYSTEM_NAME Generic)
+    set(CMAKE_SYSTEM_PROCESSOR arm)
+    set(CMAKE_C_COMPILER "arm-none-eabi-gcc")
+    set(CMAKE_ASM_COMPILER "arm-none-eabi-gcc")
+    
+    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+endif()
+
+# Fix for Cross-Compilation Compiler Check
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+# Project Definition
+project(MeasLib VERSION 0.1 LANGUAGES C ASM)
+
 # Export Compile Commands
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 
 # Includes
 include_directories(include)
@@ -49,7 +65,12 @@ set(MEASLIB_CORE_SOURCES
     src/sys/input_service.c
     src/sys/render_service.c
     src/sys/shell_service.c
+    src/sys/render_service.c
+    src/sys/shell_service.c
     src/sys/touch_service.c
+    src/sys/scpi/scpi_core.c
+    src/sys/scpi/scpi_utils.c
+    src/sys/scpi/scpi_def.c
 )
 
 # ==============================================================================
@@ -62,11 +83,18 @@ if(MEASLIB_BUILD_TESTS)
     add_compile_definitions(MEASLIB_HOST_TEST)
     
     # Compiler Flags (Generic)
-    set(CMAKE_C_FLAGS "-O0 -g -Wall -Wextra")
+    # Compiler Flags (Generic)
+    if(MSVC)
+        set(CMAKE_C_FLAGS "/Od /Zi /W3")
+    else()
+        set(CMAKE_C_FLAGS "-O0 -g -Wall -Wextra")
+    endif()
 
     # Library with Mocks
     add_library(MeasLib STATIC ${MEASLIB_CORE_SOURCES} tests/mocks/mock_hal.c)
-    target_link_libraries(MeasLib PUBLIC m)
+    if(NOT MSVC)
+        target_link_libraries(MeasLib PUBLIC m)
+    endif()
     target_include_directories(MeasLib PUBLIC 
         include 
         tests/mocks
@@ -84,6 +112,7 @@ if(MEASLIB_BUILD_TESTS)
     tests/src/core/test_core_trace.c
     tests/src/dsp/nodes/test_node_window.c
     tests/src/core/test_events.c
+    tests/src/sys/scpi/test_scpi.c
     )
     target_link_libraries(MeasLib_Test_Runner PRIVATE MeasLib)
     target_include_directories(MeasLib_Test_Runner PRIVATE tests/framework)

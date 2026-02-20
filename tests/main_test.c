@@ -20,6 +20,7 @@ void run_vna_pipeline_tests(void);
 void run_core_object_tests(void);
 void run_core_trace_tests(void);
 void run_node_window_tests(void);
+void run_scpi_tests(void);
 
 int main(void) {
   printf("======================================\n");
@@ -35,7 +36,9 @@ int main(void) {
   run_core_trace_tests();
   run_node_window_tests();
   run_vna_sanity_tests();
+  run_vna_sanity_tests();
   run_vna_pipeline_tests();
+  run_scpi_tests();
 
   printf("\nAll Tests Passed Successfully.\n");
   return 0;

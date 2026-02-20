@@ -14,7 +14,15 @@
  * @param link Pointer to the communication link API (e.g. USB CDC).
  * @param ctx Pointer to the link context.
  */
-void meas_shell_service_init(const void *link_api, void *ctx);
+#include "measlib/types.h"
+
+/**
+ * @brief Initialize the Shell Service.
+ * @param link Pointer to the communication link API (e.g. USB CDC).
+ * @param ctx Pointer to the link context.
+ * @return MEAS_OK on success.
+ */
+meas_status_t meas_shell_service_init(const void *link_api, void *ctx);
 
 /**
  * @brief Poll the Shell Service.
