@@ -13,14 +13,14 @@
 
 /**
  * @brief Initialize the Render Service.
- * Binds the LCD HAL to the UI Rendering Engine.
+ * Binds the LCD HAL to the UI Rendering Engine and initializes the display.
  * @return meas_ui_t* Pointer to the initialized UI instance (for Main Loop).
  */
-meas_ui_t *meas_render_service_init(void *display_ctx);
+meas_ui_t *meas_render_service_init(void);
 
 /**
  * @brief Poll/Update the Render Service.
- * Draws the next frame if needed.
+ * Draws only dirty tiles using the dirty bitmap.
  */
 void meas_render_service_update(void);
 

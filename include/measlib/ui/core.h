@@ -63,12 +63,14 @@ typedef enum {
 /**
  * @brief Pipeline Step
  * A single operation in the drawing sequence.
+ * The execute function receives the current tile's Y offset and height
+ * so it can skip drawing content that doesn't overlap the tile.
  */
 typedef struct {
   meas_render_stage_t stage;
-  bool (*condition)(const meas_ui_t *ui);
+  bool (*condition)(const meas_ui_t *ui, int16_t tile_y, int16_t tile_h);
   void (*execute)(const meas_ui_t *ui, meas_render_ctx_t *ctx,
-                  const meas_render_api_t *api);
+                   const meas_render_api_t *api, int16_t tile_y, int16_t tile_h);
 } meas_render_step_t;
 
 /**
@@ -79,7 +81,8 @@ typedef struct {
 
   meas_status_t (*update)(meas_ui_t *ui);
   meas_status_t (*draw)(meas_ui_t *ui, meas_render_ctx_t *ctx,
-                        const meas_render_api_t *draw_api);
+                         const meas_render_api_t *draw_api, int16_t tile_y,
+                         int16_t tile_h);
   meas_status_t (*handle_input)(meas_ui_t *ui, meas_variant_t input_event);
 
 } meas_ui_api_t;
